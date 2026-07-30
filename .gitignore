@@ -1,0 +1,42 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Config locale de l'outil Claude Code (pas partie de l'app)
+.claude
+
+# Documents de référence officiels (rulebook, glossaire, planches de rôles imprimées) : servent
+# uniquement de matériel de référence pendant le développement, ne sont utilisés par aucun code
+# de l'app, et sont des documents officiels de The Pandemonium Institute — pas à redistribuer.
+ALMANACH FR Oct 2024.pdf
+GLOSSAIRE.pdf
+Nuit conteur V3.jpg
+Icones roles/
+pouvoirs des rôles - Texte \[Oct 2024\].txt
+trouble brewing rôle 3.0 jpeg.jpg
+trouble brewing rôles 3.0.pdf
+
+# Scripts de vérification ponctuels laissés à la racine par erreur
+_debug.mjs
+_smoke*.mjs
