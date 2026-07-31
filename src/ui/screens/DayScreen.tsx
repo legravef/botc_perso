@@ -6,7 +6,7 @@ import { Screen } from '../components/Screen'
 import { Button } from '../components/Button'
 import { SkyBanner } from '../components/SkyBanner'
 import { RoleIcon } from '../components/RoleIcon'
-import { DayBriefing, PaceTimer } from '../components/DayTools'
+import { DayBriefing } from '../components/DayTools'
 import { PlayerChoiceGrid } from '../components/PlayerChoiceGrid'
 
 const NO_EXECUTION = ''
@@ -134,9 +134,6 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
         </Button>
       }
     >
-      <div className="2xl:fixed 2xl:left-8 2xl:top-28 2xl:z-10 2xl:w-80">
-        <PaceTimer dayNumber={game.dayNumber} />
-      </div>
       <div className="max-w-xl mx-auto flex flex-col gap-6">
         <SkyBanner variant="sunrise" className="h-56" />
         {game.dayNumber === 1 && (

@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
 import { useGameStore } from '@/store'
-import { getCharactersForScript } from '@/data'
+import { getCharacterById, getCharactersForScript } from '@/data'
 import type { CharacterCategory, Game, InfoPairPreparation } from '@/types'
 import { Screen } from '../components/Screen'
 import { Button } from '../components/Button'
+import { RoleIcon } from '../components/RoleIcon'
 
 interface InfoPairFieldProps {
   game: Game
@@ -123,7 +124,10 @@ export function PreparationScreen() {
   )
   const absentForBluffs = scriptCharacters.filter(
     (c) =>
-      (c.category === 'townsfolk' || c.category === 'outsider') &&
+      (c.category === 'townsfolk' || (c.category === 'outsider' && game.players.some((player) => {
+        const character = player.realCharacterId ? getCharacterById(game.scriptId, player.realCharacterId) : undefined
+        return character?.category === 'outsider'
+      }))) &&
       !inPlayIds.includes(c.id) &&
       c.id !== game.preparation.drunkBelievedCharacterId,
   )
@@ -154,6 +158,20 @@ export function PreparationScreen() {
       }
     >
       <div className="max-w-2xl mx-auto flex flex-col gap-4">
+        <section className="bg-surface-1 border border-accent/30 rounded-2xl p-5">
+          <p className="text-xs uppercase tracking-[0.16em] text-accent">Composition retenue</p>
+          <h2 className="text-lg font-semibold mt-1">Rôles et détenteurs</h2>
+          <p className="text-xs text-ink-2 mt-1">Vue privée du MJ — utile pour préparer les informations de la première nuit.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+            {[...game.players].sort((a, b) => a.seat - b.seat).map((player) => {
+              const character = player.realCharacterId ? getCharacterById(game.scriptId, player.realCharacterId) : undefined
+              return <div key={player.id} className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${character?.team === 'evil' ? 'border-evil/40 bg-evil-bg/40' : 'border-good/40 bg-good-bg/40'}`}>
+                <RoleIcon characterId={character?.id} nameFr={character?.nameFr} size={32} />
+                <div className="min-w-0"><p className="text-sm font-medium truncate">{player.name}</p><p className="text-xs text-ink-2 truncate">{character?.nameFr ?? 'Rôle non attribué'}</p></div>
+              </div>
+            })}
+          </div>
+        </section>
         {needsWasherwoman && (
           <InfoPairField
             game={game}
