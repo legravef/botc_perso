@@ -20,7 +20,7 @@ import {
   undoLastEvent,
   type LayoutPresetId,
 } from '@/engine'
-import { createEmptyPreparation } from '@/lib/factories'
+import { createEmptyPreparation, createPlayer } from '@/lib/factories'
 import {
   type SaveIndexEntry,
   deleteGameFromStorage,
@@ -44,7 +44,12 @@ interface GameStore {
   canUndo: boolean
 
   refreshSavedGames: () => void
-  createGame: () => void
+  createGame: (scriptId?: Game['scriptId']) => void
+  /** Démarre une nouvelle partie en réutilisant les joueurs (noms + disposition sur la carte)
+   * de la partie courante — pratique pour enchaîner plusieurs parties avec le même groupe
+   * installé de la même façon à table, sans tout re-saisir. Repart directement sur le choix de
+   * la composition (l'étape des joueurs est déjà faite). */
+  restartWithSamePlayers: () => void
   loadGame: (id: string) => void
   closeGame: () => void
   deleteGame: (id: string) => void
@@ -75,6 +80,8 @@ interface GameStore {
   /** Applique le résultat de l'exécution du jour (décidée verbalement à table) : tue le joueur
    * donné, ou ne fait rien si personne n'a été exécuté. */
   resolveExecution: (executedPlayerId: string | null) => void
+  /** Résout des morts nocturnes en tenant compte des protections et immunités suivies par l'application. */
+  resolveNightDeaths: (playerIds: string[], sourceCharacterId: string, ignoreProtection?: boolean) => void
   /** Confirme la fin de partie avec le vainqueur retenu par le Conteur. */
   endGame: (info: Pick<GameEndInfo, 'winner' | 'reason'>) => void
 
@@ -115,6 +122,28 @@ export const useGameStore = create<GameStore>((set, get) => {
     )
   }
 
+  function buildFreshGame(phase: GamePhase, players: Player[], scriptId: Game['scriptId'] = 'trouble-brewing'): Game {
+    const now = new Date().toISOString()
+    return {
+      id: nanoid(),
+      scriptId,
+      phase,
+      storytellerLevel: 'beginner',
+      dayNumber: 0,
+      nightNumber: 0,
+      players,
+      composition: null,
+      preparation: createEmptyPreparation(),
+      activeDemonId: null,
+      lastExecutedPlayerId: null,
+      gameNotes: [],
+      publicScreenActive: false,
+      end: null,
+      createdAt: now,
+      updatedAt: now,
+    }
+  }
+
   return {
     game: null,
     history: [],
@@ -123,25 +152,23 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     refreshSavedGames: () => set({ savedGames: loadIndex() }),
 
-    createGame: () => {
-      const now = new Date().toISOString()
-      const game: Game = {
-        id: nanoid(),
-        scriptId: 'trouble-brewing',
-        phase: 'setup.players',
-        storytellerLevel: 'beginner',
-        dayNumber: 0,
-        nightNumber: 0,
-        players: [],
-        composition: null,
-        preparation: createEmptyPreparation(),
-        activeDemonId: null,
-        gameNotes: [],
-        publicScreenActive: false,
-        end: null,
-        createdAt: now,
-        updatedAt: now,
-      }
+    createGame: (scriptId = 'trouble-brewing') => {
+      const game = buildFreshGame('setup.players', [], scriptId)
+      set({ game, history: [], canUndo: false })
+      saveGameToStorage(game, [])
+      get().refreshSavedGames()
+    },
+
+    restartWithSamePlayers: () => {
+      const current = get().game
+      if (!current) return
+      const reusedPlayers = [...current.players]
+        .sort((a, b) => a.seat - b.seat)
+        .map((p) => {
+          const fresh = createPlayer(p.name, p.seat)
+          return { ...fresh, mapX: p.mapX, mapY: p.mapY }
+        })
+      const game = buildFreshGame('setup.composition', reusedPlayers, current.scriptId)
       set({ game, history: [], canUndo: false })
       saveGameToStorage(game, [])
       get().refreshSavedGames()
@@ -249,23 +276,88 @@ export const useGameStore = create<GameStore>((set, get) => {
           phase: 'day.discussion',
           dayNumber: isFirst ? 1 : g.dayNumber + 1,
           nightNumber: isFirst ? 1 : g.nightNumber,
+          // Ces effets ne valent que jusqu'à l'aube : ne jamais laisser un vieux rappel
+          // protéger/saouler un joueur lors d'une nuit suivante.
+          players: g.players.map((player) => ({
+            ...player,
+            reminders: player.reminders.filter(
+              (reminder) => !['monk', 'sailor', 'innkeeper', 'exorcist'].includes(reminder.sourceCharacterId),
+            ),
+          })),
         }
       }),
 
     /** Démarre la nuit suivante depuis la phase de jour. */
     startNextNight: () =>
-      commit('phase.changed', (g) => ({ ...g, phase: 'night.other', nightNumber: g.nightNumber + 1 })),
+      commit('phase.changed', (g) => ({
+        ...g,
+        phase: 'night.other',
+        nightNumber: g.nightNumber + 1,
+        players: g.players.map((player) => ({
+          ...player,
+          reminders: player.reminders.filter((reminder) => reminder.sourceCharacterId !== 'devils-advocate'),
+        })),
+      })),
 
-    resolveExecution: (executedPlayerId) =>
+  resolveExecution: (executedPlayerId) =>
       commit(
         'execution.resolved',
         (g) => ({
           ...g,
+          lastExecutedPlayerId: executedPlayerId,
           players: executedPlayerId
-            ? g.players.map((p) => (p.id === executedPlayerId ? { ...p, alive: false } : p))
+            ? g.players.map((p) => {
+                if (p.id !== executedPlayerId) return p
+                const protectedByAdvocate = p.reminders.some((reminder) => reminder.sourceCharacterId === 'devils-advocate')
+                return protectedByAdvocate ? p : { ...p, alive: false }
+              })
             : g.players,
         }),
         { targetIds: executedPlayerId ? [executedPlayerId] : [] },
+      ),
+
+    resolveNightDeaths: (playerIds, sourceCharacterId, ignoreProtection = false) =>
+      commit(
+        'player.updated',
+        (g) => {
+          const targets = new Set(playerIds)
+          return {
+            ...g,
+            players: g.players.map((player) => {
+              if (!targets.has(player.id) || !player.alive) return player
+              const source = getCharacterById(g.scriptId, sourceCharacterId)
+              const protectedTonight = player.reminders.some(
+                (reminder) =>
+                  reminder.sourceCharacterId === 'innkeeper' ||
+                  (reminder.sourceCharacterId === 'monk' && source?.category === 'demon'),
+              )
+              const sailorImmune = player.realCharacterId === 'sailor'
+              const foolUsed = player.reminders.some((reminder) => reminder.sourceCharacterId === 'fool')
+              const zombuulUsed = player.reminders.some((reminder) => reminder.sourceCharacterId === 'zombuul')
+              if (!ignoreProtection && (protectedTonight || sailorImmune)) return player
+              if (!ignoreProtection && player.realCharacterId === 'fool' && !foolUsed) {
+                return {
+                  ...player,
+                  reminders: [
+                    ...player.reminders,
+                    { id: nanoid(), label: 'Vie du Fou consommée', sourceCharacterId: 'fool', createdAt: new Date().toISOString() },
+                  ],
+                }
+              }
+              if (!ignoreProtection && player.realCharacterId === 'zombuul' && !zombuulUsed) {
+                return {
+                  ...player,
+                  reminders: [
+                    ...player.reminders,
+                    { id: nanoid(), label: 'Mort vivant', sourceCharacterId: 'zombuul', createdAt: new Date().toISOString() },
+                  ],
+                }
+              }
+              return { ...player, alive: false }
+            }),
+          }
+        },
+        { targetIds: playerIds, payload: { sourceCharacterId, ignoreProtection } },
       ),
 
     endGame: (info) =>

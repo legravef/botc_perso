@@ -22,6 +22,10 @@ export interface NightStep {
   redHerringPlayerId?: string
   /** Étape "Information du Démon"/Voyante : identifiant du joueur incarnant le Démon, pour affichage explicite. */
   demonPlayerId?: string
+  /** Contenu à afficher plein écran, tourné vers le joueur — remplace une feuille de référence
+   * papier. `pair` : deux joueurs (sans distinction) + le rôle concerné (Lavandière/Libraire/
+   * Enquêteur). `number` : un nombre à montrer silencieusement (Chef/Empathique). */
+  displayReveal?: { kind: 'pair'; playerAId: string; playerBId: string; characterId: string } | { kind: 'number'; value: number }
 }
 
 interface OrderedStep extends NightStep {
@@ -50,6 +54,7 @@ function buildPairStep(
     ...base,
     instruction: `Montrez-lui ${playerA?.name ?? '?'} et ${playerB?.name ?? '?'}, ainsi que le rôle : ${character?.nameFr ?? '?'}.`,
     resolvedInfo: `Le ${categoryLabel} réel est ${character?.nameFr ?? '?'}, détenu par ${playerA?.name ?? '?'}.`,
+    displayReveal: { kind: 'pair', playerAId: prep.playerAId, playerBId: prep.playerBId, characterId: prep.characterId },
   }
 }
 
@@ -63,18 +68,24 @@ function buildCharacterStep(game: Game, character: Character, player: Player): N
   }
 
   switch (character.id) {
-    case 'chef':
+    case 'chef': {
+      const number = calculateChefNumber(game.players)
       return {
         ...base,
         instruction: 'Montrez-lui silencieusement le nombre de paires de joueurs méchants assis côte à côte.',
-        resolvedInfo: `Nombre à indiquer : ${calculateChefNumber(game.players)}`,
+        resolvedInfo: `Nombre à indiquer : ${number}`,
+        displayReveal: { kind: 'number', value: number },
       }
-    case 'empath':
+    }
+    case 'empath': {
+      const number = calculateEmpathNumber(game.players, player.id)
       return {
         ...base,
         instruction: 'Montrez-lui silencieusement le nombre de ses voisins vivants méchants.',
-        resolvedInfo: `Nombre à indiquer : ${calculateEmpathNumber(game.players, player.id)}`,
+        resolvedInfo: `Nombre à indiquer : ${number}`,
+        displayReveal: { kind: 'number', value: number },
       }
+    }
     case 'washerwoman':
       return buildPairStep(game, base, game.preparation.washerwoman, 'Villageois')
     case 'librarian':
@@ -92,12 +103,26 @@ function buildCharacterStep(game: Game, character: Character, player: Player): N
         redHerringPlayerId: redHerring?.id,
       }
     }
-    case 'undertaker':
+    case 'undertaker': {
+      const executed = game.lastExecutedPlayerId
+        ? game.players.find((candidate) => candidate.id === game.lastExecutedPlayerId)
+        : undefined
+      const executedCharacter = executed?.realCharacterId
+        ? getCharacterById(game.scriptId, executed.realCharacterId)
+        : undefined
+      if (executed) {
+        return {
+          ...base,
+          instruction: `Montrez-lui le rôle réel du joueur exécuté hier : ${executed.name}.`,
+          resolvedInfo: `Montrez : ${executedCharacter?.nameFr ?? '?'}.`,
+        }
+      }
       return {
         ...base,
         instruction:
           "Si un joueur a été exécuté hier, montrez-lui son personnage réel. Sinon, ne réveillez pas ce joueur.",
       }
+    }
     case 'ravenkeeper':
       return {
         ...base,
@@ -127,7 +152,10 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
   const ordered: OrderedStep[] = []
 
   if (nightType === 'first') {
-    const demonPlayer = findAlivePlayer('imp')
+    const demonPlayer = game.players.find((p) => {
+      const character = p.realCharacterId ? getCharacterById(game.scriptId, p.realCharacterId) : undefined
+      return p.alive && character?.category === 'demon'
+    })
     const minionPlayers = game.players.filter((p) => {
       const c = characters.find((ch) => ch.id === p.realCharacterId)
       return c?.category === 'minion' && p.alive
@@ -169,6 +197,7 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
   for (const character of characters) {
     const order = nightType === 'first' ? character.firstNightOrder : character.otherNightOrder
     if (order === null) continue
+    if (character.id === 'undertaker' && !game.lastExecutedPlayerId) continue
     const player = findAlivePlayer(character.id)
     if (!player) continue
     ordered.push({ ...buildCharacterStep(game, character, player), orderValue: order })

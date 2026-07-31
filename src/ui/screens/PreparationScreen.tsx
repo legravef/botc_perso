@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useGameStore } from '@/store'
-import { TROUBLE_BREWING_CHARACTERS, getCharactersForScript } from '@/data'
+import { getCharactersForScript } from '@/data'
 import type { CharacterCategory, Game, InfoPairPreparation } from '@/types'
 import { Screen } from '../components/Screen'
 import { Button } from '../components/Button'
@@ -112,12 +112,16 @@ export function PreparationScreen() {
   const needsInvestigator = inPlay('investigator')
   const needsFortuneTeller = inPlay('fortune-teller')
   const needsDrunk = inPlay('drunk')
-  const needsImp = inPlay('imp')
+  const demon = game.players
+    .map((player) => ({ player, character: player.realCharacterId ? getCharactersForScript(game.scriptId).find((c) => c.id === player.realCharacterId) : undefined }))
+    .find(({ character }) => character?.category === 'demon')?.character
+  const needsDemonBluffs = !!demon
 
-  const absentTownsfolk = TROUBLE_BREWING_CHARACTERS.filter(
+  const scriptCharacters = getCharactersForScript(game.scriptId)
+  const absentTownsfolk = scriptCharacters.filter(
     (c) => c.category === 'townsfolk' && !inPlayIds.includes(c.id),
   )
-  const absentForBluffs = TROUBLE_BREWING_CHARACTERS.filter(
+  const absentForBluffs = scriptCharacters.filter(
     (c) =>
       (c.category === 'townsfolk' || c.category === 'outsider') &&
       !inPlayIds.includes(c.id) &&
@@ -131,7 +135,7 @@ export function PreparationScreen() {
     (!needsInvestigator || !!game.preparation.investigator) &&
     (!needsFortuneTeller || !!game.preparation.fortuneTellerRedHerringPlayerId) &&
     (!needsDrunk || !!game.preparation.drunkBelievedCharacterId) &&
-    (!needsImp || game.preparation.impBluffCharacterIds.length === 3)
+    (!needsDemonBluffs || game.preparation.impBluffCharacterIds.length === 3)
 
   function handleNext() {
     if (!ready) return
@@ -231,7 +235,7 @@ export function PreparationScreen() {
           </div>
         )}
 
-        {needsImp && (
+        {needsDemonBluffs && (
           <div className="bg-surface-1 border border-border rounded-lg p-4">
             <h3 className="font-medium mb-2">Diablotin — 3 bluffs</h3>
             <p className="text-xs text-ink-2 mb-2">

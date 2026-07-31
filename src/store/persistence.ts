@@ -41,7 +41,8 @@ function buildLabel(game: Game): string {
   const formatted = Number.isNaN(date.getTime())
     ? game.createdAt
     : date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  return `Partie du ${formatted} — ${game.players.length} joueurs`
+  const scriptName = game.scriptId === 'bad-moon-rising' ? 'Bad Moon Rising' : 'Trouble Brewing'
+  return `${scriptName} — ${formatted} — ${game.players.length} joueurs`
 }
 
 /** Sauvegarde la partie et son historique, et met à jour l'index des sauvegardes. */

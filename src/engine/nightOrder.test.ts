@@ -183,3 +183,25 @@ describe('generateNightSteps — nuits suivantes', () => {
     expect(ids).not.toContain('investigator')
   })
 })
+describe('generateNightSteps — Bad Moon Rising', () => {
+  it('donne les informations de Sbire et de Démon pour n’importe quel Démon du script', () => {
+    const script = 'bad-moon-rising' as const
+    const players = ['grandmother', 'goon', 'godfather', 'shabaloth'].map((characterId, index) => {
+      const player = createPlayer(`BMR ${index + 1}`, index)
+      const character = getCharacterById(script, characterId)
+      return { ...player, realCharacterId: characterId, alignment: character!.team }
+    })
+    const game = makeGame({
+      scriptId: script,
+      players,
+      preparation: { ...createEmptyPreparation(), impBluffCharacterIds: ['sailor', 'tinker', 'fool'] },
+    })
+
+    const steps = generateNightSteps(game, 'first')
+    expect(steps[0]?.kind).toBe('minion-info')
+    expect(steps[0]?.resolvedInfo).toContain('BMR 4')
+    expect(steps[1]?.kind).toBe('demon-info')
+    expect(steps[1]?.bluffCharacterIds).toEqual(['sailor', 'tinker', 'fool'])
+    expect(steps.some((step) => step.characterId === 'grandmother')).toBe(true)
+  })
+})

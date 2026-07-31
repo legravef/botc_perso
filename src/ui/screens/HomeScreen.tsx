@@ -1,7 +1,11 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { useGameStore } from '@/store'
 import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
+import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
 import { Button } from '../components/Button'
+
+const DEMON_HEAD_URL =
+  'https://images.squarespace-cdn.com/content/v1/5df111c5e3700a6ab460475c/1621444891527-KTQN076SU7SSD0K6H40N/demon-head.png'
 
 interface HomeScreenProps {
   onOpenCharacterReference: () => void
@@ -41,7 +45,7 @@ export function HomeScreen({ onOpenCharacterReference }: HomeScreenProps) {
   const [importError, setImportError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const sorted = [...savedGames].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const sorted = savedGames.filter((entry) => entry.playerCount > 0).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   const mostRecent = sorted[0]
 
   function handleImportClick() {
@@ -87,7 +91,7 @@ export function HomeScreen({ onOpenCharacterReference }: HomeScreenProps) {
         <div className="relative w-40 h-40 mx-auto">
           <LogoGlow />
           <img
-            src={logoTroubleBrewing}
+            src={DEMON_HEAD_URL}
             alt="Blood on the Clocktower — Trouble Brewing"
             className="relative w-40 h-40 object-contain drop-shadow-[0_4px_18px_rgba(0,0,0,0.55)]"
           />
@@ -112,9 +116,20 @@ export function HomeScreen({ onOpenCharacterReference }: HomeScreenProps) {
       </div>
 
       <div className="relative flex flex-col gap-3 w-full max-w-sm">
-        <Button variant="primary" onClick={createGame}>
-          Nouvelle partie
-        </Button>
+        <section aria-label="Choisir un scénario" className="grid grid-cols-2 gap-3">
+          <ScriptCard
+            name="Trouble Brewing"
+            description="Pour découvrir le jeu"
+            logo={logoTroubleBrewing}
+            onClick={() => createGame('trouble-brewing')}
+          />
+          <ScriptCard
+            name="Bad Moon Rising"
+            description="Morts et résurrections"
+            logo={logoBadMoonRising}
+            onClick={() => createGame('bad-moon-rising')}
+          />
+        </section>
 
         <Button variant="secondary" disabled={!mostRecent} onClick={() => mostRecent && loadGame(mostRecent.id)}>
           {mostRecent ? `Reprendre : ${mostRecent.label}` : 'Reprendre une partie'}
@@ -164,5 +179,30 @@ export function HomeScreen({ onOpenCharacterReference }: HomeScreenProps) {
         Outil communautaire non officiel, non affilié à The Pandemonium Institute ni à l'éditeur du jeu.
       </p>
     </div>
+  )
+}
+
+function ScriptCard({
+  name,
+  description,
+  logo,
+  onClick,
+}: {
+  name: string
+  description: string
+  logo: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group min-h-40 flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-surface-1 px-3 py-4 text-center transition hover:-translate-y-0.5 hover:border-accent hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      title={`Lancer une partie ${name}`}
+    >
+      <img src={logo} alt="" aria-hidden="true" className="h-20 w-20 object-contain drop-shadow-[0_3px_10px_rgba(0,0,0,0.5)]" />
+      <span className="text-sm font-semibold leading-tight">{name}</span>
+      <span className="text-[11px] text-ink-2 leading-tight">{description}</span>
+    </button>
   )
 }

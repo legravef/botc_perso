@@ -87,6 +87,9 @@ export interface Game {
 
   activeDemonId: string | null // playerId du joueur incarnant actuellement le Démon
 
+  /** Dernier joueur exécuté : utilisé pour déclencher le Croque-mort la nuit suivante. */
+  lastExecutedPlayerId?: string | null
+
   gameNotes: PlayerNote[]
 
   publicScreenActive: boolean

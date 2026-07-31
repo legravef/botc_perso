@@ -1,4 +1,4 @@
-import { TROUBLE_BREWING_CHARACTERS } from '@/data'
+import { getCharactersForScript } from '@/data'
 import type { CharacterCategory } from '@/types'
 import { Screen } from '../components/Screen'
 import { RoleIcon } from '../components/RoleIcon'
@@ -11,15 +11,17 @@ const CATEGORY_LABELS: Record<CharacterCategory, string> = {
   demon: 'Démon',
 }
 
-export function CharacterReferenceScreen({ onBack }: { onBack: () => void }) {
+export function CharacterReferenceScreen({ onBack, scriptId = 'trouble-brewing' }: { onBack: () => void; scriptId?: import('@/types').ScriptId }) {
+  const characters = getCharactersForScript(scriptId)
+  const scriptName = scriptId === 'bad-moon-rising' ? 'Bad Moon Rising' : 'Trouble Brewing'
   return (
-    <Screen title="Personnages — Trouble Brewing" onBack={onBack}>
+    <Screen title={`Personnages — ${scriptName}`} onBack={onBack}>
       <div className="max-w-3xl mx-auto flex flex-col gap-8">
         {CATEGORY_ORDER.map((category) => (
           <section key={category}>
             <h2 className="text-lg font-semibold mb-3">{CATEGORY_LABELS[category]}</h2>
             <div className="flex flex-col gap-3">
-              {TROUBLE_BREWING_CHARACTERS.filter((c) => c.category === category).map((character) => (
+              {characters.filter((c) => c.category === category).map((character) => (
                 <div key={character.id} className="bg-surface-1 border border-border rounded-lg p-4 flex gap-3">
                   <RoleIcon characterId={character.id} nameFr={character.nameFr} size={44} />
                   <div className="flex-1">

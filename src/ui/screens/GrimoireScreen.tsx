@@ -2,15 +2,15 @@ import { useEffect, useState } from 'react'
 import { useGameStore } from '@/store'
 import { getCharacterById } from '@/data'
 import { LAYOUT_PRESETS, generateLayoutPositions, getEffectivePosition, type LayoutPresetId } from '@/engine'
-import { renderGrimoireToDataUrl } from '@/lib/exportGrimoireImage'
-import { exportCompositionToScriptJson } from '@/lib/scriptExport'
 import { getReminderVisual } from '@/lib/reminderStyles'
 import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
+import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
 import type { Player } from '@/types'
 import { SeatingLayout } from '../components/SeatingLayout'
 import { Button } from '../components/Button'
 import { PlayerDetailPanel } from '../components/PlayerDetailPanel'
 import { RoleIcon } from '../components/RoleIcon'
+import { TableModeToggle } from '../components/TableModeToggle'
 
 const GRIMOIRE_STARS = [
   { top: 6, left: 5 },
@@ -24,16 +24,6 @@ const GRIMOIRE_STARS = [
   { top: 24, left: 55 },
   { top: 20, left: 96 },
 ]
-
-function downloadFile(content: string, filename: string, mimeType: string): void {
-  const blob = new Blob([content], { type: mimeType })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
 
 interface LocalPosition {
   x: number
@@ -50,12 +40,11 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
   const game = useGameStore((s) => s.game)
   const undo = useGameStore((s) => s.undo)
   const canUndo = useGameStore((s) => s.canUndo)
-  const historyLength = useGameStore((s) => s.history.length)
-  const clearHistory = useGameStore((s) => s.clearHistory)
-  const exportCurrentGame = useGameStore((s) => s.exportCurrentGame)
+  const history = useGameStore((s) => s.history)
+  const restartWithSamePlayers = useGameStore((s) => s.restartWithSamePlayers)
   const setAllPlayerPositions = useGameStore((s) => s.setAllPlayerPositions)
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null)
-  const [confirmingClear, setConfirmingClear] = useState(false)
+  const [confirmingRestart, setConfirmingRestart] = useState(false)
   const [reorderMode, setReorderMode] = useState(false)
   const [reorderPositions, setReorderPositions] = useState<Record<string, LocalPosition>>({})
 
@@ -69,37 +58,52 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
 
   if (!game) return null
 
+  const isBadMoonRising = game.scriptId === 'bad-moon-rising'
+  const scriptLogo = isBadMoonRising ? logoBadMoonRising : logoTroubleBrewing
   const selectedPlayer = selectedPlayerId ? game.players.find((p) => p.id === selectedPlayerId) : undefined
+  function describeUsefulEvent(event: (typeof history)[number]): string | null {
+    if (event.type === 'execution.resolved') {
+      const executed = event.targetIds?.[0]
+      const player = executed ? event.resultingState.players.find((p) => p.id === executed) : undefined
+      return player ? `Exécution : ${player.name} est mort.` : 'Aucune exécution aujourd’hui.'
+    }
+    if (event.type === 'game.ended') return 'Fin de partie confirmée.'
+    if (event.type !== 'player.updated') return null
 
-  function handleExport() {
-    const json = exportCurrentGame()
-    if (!json || !game) return
-    downloadFile(json, `partie-botc-${game.id.slice(0, 8)}.json`, 'application/json')
+    const playerId = event.targetIds?.[0]
+    const before = playerId ? event.previousState.players.find((p) => p.id === playerId) : undefined
+    const after = playerId ? event.resultingState.players.find((p) => p.id === playerId) : undefined
+    if (!before || !after) return null
+    if (before.alive !== after.alive) return after.alive ? `${after.name} est ressuscité.` : `${after.name} est mort.`
+
+    const addedReminders = after.reminders.filter((reminder) => !before.reminders.some((old) => old.id === reminder.id))
+    if (addedReminders.length > 0) return `${after.name} : ${addedReminders.map((reminder) => reminder.label).join(', ')}.`
+
+    const addedNotes = after.notes.filter((note) => !before.notes.some((old) => old.id === note.id))
+    const powerNote = addedNotes.find((note) => note.category === 'power-used')
+    return powerNote ? `${after.name} — ${powerNote.text}` : null
   }
 
-  function handleExportImage() {
-    if (!game) return
-    const dataUrl = renderGrimoireToDataUrl(game)
-    const a = document.createElement('a')
-    a.href = dataUrl
-    a.download = `grimoire-botc-${game.id.slice(0, 8)}.png`
-    a.click()
-  }
+  const recentActivities = [...history]
+    .reverse()
+    .map((event) => ({ event, description: describeUsefulEvent(event) }))
+    .filter((activity): activity is { event: (typeof history)[number]; description: string } => Boolean(activity.description))
+    .slice(0, 5)
 
-  function handleExportScript() {
-    if (!game) return
-    const characterIds = game.composition?.characterIds ?? []
-    const script = exportCompositionToScriptJson(characterIds, game.scriptId)
-    downloadFile(JSON.stringify(script, null, 2), `script-botc-${game.id.slice(0, 8)}.json`, 'application/json')
-  }
+  const activeEffects = game.players.flatMap((target) =>
+    target.reminders.map((reminder) => {
+      const source = game.players.find((player) => player.realCharacterId === reminder.sourceCharacterId)
+      const visual = getReminderVisual(reminder.sourceCharacterId)
+      return { id: reminder.id, target, source, reminder, visual }
+    }),
+  )
 
-  function handleClearHistory() {
-    if (!confirmingClear) {
-      setConfirmingClear(true)
+  function handleRestart() {
+    if (!confirmingRestart) {
+      setConfirmingRestart(true)
       return
     }
-    clearHistory()
-    setConfirmingClear(false)
+    restartWithSamePlayers()
   }
 
   function enterReorderMode() {
@@ -145,7 +149,7 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
     : game.players
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-surface-0 text-ink-0 overflow-hidden">
+    <div className="relative min-h-screen flex flex-col bg-surface-0 text-ink-0 overflow-hidden screen-enter">
       {/* Ambiance de fond : légère brume violette + étoiles + filigrane du logo — purement
           décoratif (pointer-events-none), pour que le grimoire ne soit plus un simple écran
           noir avec des cartes dessus. */}
@@ -166,7 +170,7 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
         ))}
       </div>
       <img
-        src={logoTroubleBrewing}
+        src={scriptLogo}
         alt=""
         aria-hidden="true"
         className="pointer-events-none absolute top-1/2 left-1/2 w-[560px] h-[560px] object-contain opacity-[0.04] -translate-x-1/2 -translate-y-1/2"
@@ -174,7 +178,7 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
 
       <header className="relative flex items-center justify-between px-6 py-4 border-b border-border flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <img src={logoTroubleBrewing} alt="" className="w-8 h-8 object-contain opacity-90" aria-hidden="true" />
+          <img src={scriptLogo} alt="" className="w-8 h-8 object-contain opacity-90" aria-hidden="true" />
           <div>
             <h1 className="text-lg font-semibold">Grimoire du Conteur</h1>
             <p className="text-xs text-ink-2">
@@ -183,6 +187,7 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
           </div>
         </div>
         <div className="flex gap-2">
+          <TableModeToggle />
           {onBack && (
             <Button variant="ghost" onClick={onBack}>
               ← Retour
@@ -192,26 +197,12 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
             Annuler
           </Button>
           <Button
-            variant={confirmingClear ? 'danger' : 'ghost'}
-            disabled={historyLength === 0}
-            onClick={handleClearHistory}
-            onBlur={() => setConfirmingClear(false)}
-            title="Vide l'historique : vous ne pourrez plus annuler les actions passées. L'état actuel de la partie n'est pas modifié."
+            variant={confirmingRestart ? 'danger' : 'ghost'}
+            onClick={handleRestart}
+            onBlur={() => setConfirmingRestart(false)}
+            title="Crée une nouvelle partie avec les mêmes joueurs aux mêmes places. Les rôles et le déroulement de la partie actuelle restent dans sa sauvegarde."
           >
-            {confirmingClear ? 'Confirmer le vidage ?' : `Vider l'historique (${historyLength})`}
-          </Button>
-          <Button variant="ghost" onClick={handleExport}>
-            Exporter (JSON)
-          </Button>
-          <Button variant="ghost" onClick={handleExportImage}>
-            Exporter (image)
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={handleExportScript}
-            title="Format JSON compatible avec les autres outils communautaires (Script Tool, townsquare...)"
-          >
-            Exporter le script
+            {confirmingRestart ? 'Confirmer la nouvelle partie ?' : 'Nouvelle partie, mêmes joueurs'}
           </Button>
           <Button variant="ghost" onClick={onGoHome}>
             Accueil
@@ -233,7 +224,7 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
           </div>
         )}
       </div>
-      <main className="flex-1 flex items-center justify-center py-10 px-4">
+      <main className={`flex-1 grid grid-cols-1 ${recentActivities.length > 0 ? '2xl:grid-cols-[minmax(0,1fr)_18rem]' : ''} items-center gap-6 py-8 px-4 max-w-[110rem] w-full mx-auto`}>
         <SeatingLayout
           players={displayPlayers}
           reorderable={reorderMode}
@@ -250,7 +241,7 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
             return (
               <div
                 onClick={() => !reorderMode && setSelectedPlayerId(player.id)}
-                className={`relative w-28 rounded-xl border px-2 py-2 text-center select-none ${
+                className={`relative w-28 rounded-xl border px-2 py-2 text-center select-none shadow-[0_8px_22px_rgba(0,0,0,0.22)] ${
                   reorderMode ? '' : 'transition hover:brightness-125 cursor-pointer'
                 } ${
                   isDragging
@@ -276,7 +267,7 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
                   </div>
                 )}
                 <div className="flex items-center justify-center gap-1 mt-1">
-                  {!player.alive && <span className="text-[10px] text-danger">Mort</span>}
+                  {!player.alive && <span className="text-[10px] rounded-full bg-danger/20 px-1.5 py-0.5 text-danger">✦ Mort</span>}
                   {!player.alive && player.ghostVoteAvailable && (
                     <span className="text-[10px] text-accent">👻</span>
                   )}
@@ -304,6 +295,44 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
             )
           }}
         />
+        {recentActivities.length > 0 && <aside className="self-stretch max-w-md 2xl:max-w-none mx-auto w-full rounded-2xl border border-border bg-surface-1/90 backdrop-blur p-4 flex flex-col gap-4 shadow-xl">
+          {activeEffects.length > 0 && (
+            <section className="rounded-xl border border-accent/25 bg-accent/5 p-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-accent">Effets actifs</p>
+              <div className="mt-3 flex flex-col gap-2">
+                {activeEffects.slice(0, 5).map(({ id, source, target, reminder, visual }) => (
+                  <div key={id} className="flex items-center gap-2 text-xs">
+                    <span className={`shrink-0 rounded-full px-1.5 py-1 ${visual?.className ?? 'bg-warn/20 text-warn'}`}>{visual?.icon ?? '✦'}</span>
+                    <span className="min-w-0 truncate font-medium">{source?.name ?? reminder.sourceCharacterId}</span>
+                    <span className="text-accent">→</span>
+                    <span className="min-w-0 truncate">{target.name}</span>
+                    <span className="ml-auto text-ink-2 truncate max-w-20" title={reminder.label}>{reminder.label}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-accent">Journal du Conteur</p>
+            <h2 className="text-lg font-semibold mt-1">Dernières actions</h2>
+          </div>
+          {recentActivities.length > 0 ? (
+            <ol className="relative flex flex-col gap-3 before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-px before:bg-border">
+              {recentActivities.map(({ event, description }, index) => (
+                <li key={event.id} className="relative pl-5">
+                  <span className={`absolute left-0 top-3 h-3.5 w-3.5 rounded-full border-2 border-surface-1 ${index === 0 ? 'bg-accent event-pulse' : 'bg-ink-2'}`} />
+                  <div className="rounded-lg border border-border bg-surface-2/70 px-3 py-2 card-lift">
+                    <p className="text-sm font-medium">{description}</p>
+                    <p className="text-[11px] text-ink-2">{new Date(event.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+          <div className="mt-auto rounded-lg border border-accent/25 bg-accent/5 p-3 text-xs text-ink-1">
+            <span className="text-accent">Astuce :</span> cliquez sur un jeton pour consulter les rappels, notes et voisins du joueur.
+          </div>
+        </aside>}
       </main>
       <p className="text-center text-xs text-ink-2 pb-4">
         {reorderMode

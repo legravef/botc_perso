@@ -435,4 +435,53 @@ describe('useGameStore — exécution du jour et fin de partie', () => {
     expect(game.end?.winner).toBe('good')
     expect(game.end?.reason).toBe('Le Démon est mort.')
   })
+
+  it('restartWithSamePlayers réutilise noms et disposition mais repart de zéro sur le reste', () => {
+    const players = setupDayGame()
+    useGameStore.getState().killPlayer(players[0]!.id)
+    useGameStore.getState().setAllPlayerPositions([{ playerId: players[1]!.id, mapX: 0.4, mapY: -0.2 }])
+    useGameStore.getState().endGame({ winner: 'good', reason: 'Le Démon est mort.' })
+
+    useGameStore.getState().restartWithSamePlayers()
+    const game = useGameStore.getState().game!
+
+    expect(game.phase).toBe('setup.composition')
+    expect(game.end).toBeNull()
+    expect(game.composition).toBeNull()
+    expect(game.players).toHaveLength(players.length)
+    expect(new Set(game.players.map((p) => p.name))).toEqual(new Set(players.map((p) => p.name)))
+    expect(game.players.every((p) => p.realCharacterId === null && p.alive)).toBe(true)
+    const movedPlayer = game.players.find((p) => p.name === players[1]!.name)
+    expect(movedPlayer?.mapX).toBe(0.4)
+    expect(movedPlayer?.mapY).toBe(-0.2)
+    expect(useGameStore.getState().history).toHaveLength(0)
+  })
+})
+describe('useGameStore — résolution centralisée des morts nocturnes', () => {
+  it('respecte une protection nocturne sauf pour un Assassin', () => {
+    useGameStore.getState().createGame('bad-moon-rising')
+    const [target] = sevenPlayers() as [Player]
+    useGameStore.getState().setPlayers([target])
+    useGameStore.getState().addReminder(target.id, 'Protégé (Aubergiste)', 'innkeeper')
+
+    useGameStore.getState().resolveNightDeaths([target.id], 'zombuul')
+    expect(useGameStore.getState().game?.players[0]?.alive).toBe(true)
+
+    useGameStore.getState().resolveNightDeaths([target.id], 'assassin', true)
+    expect(useGameStore.getState().game?.players[0]?.alive).toBe(false)
+  })
+
+  it('consomme la première vie du Fou sans le tuer', () => {
+    useGameStore.getState().createGame('bad-moon-rising')
+    const [target] = sevenPlayers() as [Player]
+    useGameStore.getState().setPlayers([{ ...target, realCharacterId: 'fool' }])
+
+    useGameStore.getState().resolveNightDeaths([target.id], 'zombuul')
+    const afterFirst = useGameStore.getState().game?.players[0]
+    expect(afterFirst?.alive).toBe(true)
+    expect(afterFirst?.reminders.some((reminder) => reminder.sourceCharacterId === 'fool')).toBe(true)
+
+    useGameStore.getState().resolveNightDeaths([target.id], 'zombuul')
+    expect(useGameStore.getState().game?.players[0]?.alive).toBe(false)
+  })
 })

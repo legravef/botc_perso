@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useGameStore } from '@/store'
-import { TROUBLE_BREWING_CHARACTERS } from '@/data'
+import { getCharactersForScript } from '@/data'
 import { generateRandomComposition, generateSuggestedComposition, validateComposition } from '@/engine'
 import type { Character, CharacterCategory, Composition, StorytellerLevel } from '@/types'
 import { Screen } from '../components/Screen'
@@ -104,7 +104,7 @@ export function CompositionSetupScreen() {
   return (
     <Screen
       title="Nouvelle partie — Composition"
-      subtitle={`${playerCount} joueurs — Trouble Brewing`}
+      subtitle={`${playerCount} joueurs — ${scriptId === 'bad-moon-rising' ? 'Bad Moon Rising' : 'Trouble Brewing'}`}
       onBack={() => setPhase('setup.players')}
       footer={
         <Button variant="primary" disabled={!composition.isValid} onClick={handleNext}>
@@ -152,7 +152,7 @@ export function CompositionSetupScreen() {
           <CategorySection
             key={category}
             category={category}
-            characters={TROUBLE_BREWING_CHARACTERS.filter((c) => c.category === category)}
+            characters={getCharactersForScript(scriptId).filter((c) => c.category === category)}
             selected={selected}
             locked={locked}
             onToggle={toggleCharacter}

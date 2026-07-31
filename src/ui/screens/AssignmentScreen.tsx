@@ -18,12 +18,20 @@ export function AssignmentScreen() {
     Object.fromEntries(players.map((p) => [p.id, p.realCharacterId])),
   )
 
-  function usedElsewhere(characterId: string, exceptPlayerId: string) {
-    return Object.entries(assignments).some(([pid, cid]) => pid !== exceptPlayerId && cid === characterId)
-  }
-
   function setAssignment(playerId: string, characterId: string) {
-    setAssignments((current) => ({ ...current, [playerId]: characterId || null }))
+    setAssignments((current) => {
+      const next = { ...current }
+      if (characterId) {
+        // Un rôle ne peut être détenu que par un seul joueur à la fois : le retirer de son
+        // éventuel détenteur précédent avant de l'attribuer ici permet de le réassigner en un
+        // seul geste, sans devoir d'abord aller le désélectionner ailleurs.
+        for (const [pid, cid] of Object.entries(next)) {
+          if (pid !== playerId && cid === characterId) next[pid] = null
+        }
+      }
+      next[playerId] = characterId || null
+      return next
+    })
   }
 
   function randomize() {
@@ -39,10 +47,9 @@ export function AssignmentScreen() {
   }
 
   const allAssigned = players.length > 0 && players.every((p) => assignments[p.id])
-  const allDistinct = new Set(Object.values(assignments).filter(Boolean)).size === players.length
 
   function handleConfirm() {
-    if (!allAssigned || !allDistinct) return
+    if (!allAssigned) return
     const final: Record<string, string> = {}
     for (const [pid, cid] of Object.entries(assignments)) if (cid) final[pid] = cid
     assignCharacters(final)
@@ -55,7 +62,7 @@ export function AssignmentScreen() {
       subtitle="Attribution manuelle ou aléatoire, puis vérification avant de commencer."
       onBack={() => setPhase('setup.composition')}
       footer={
-        <Button variant="primary" disabled={!allAssigned || !allDistinct} onClick={handleConfirm}>
+        <Button variant="primary" disabled={!allAssigned} onClick={handleConfirm}>
           Terminer l'attribution
         </Button>
       }
@@ -80,11 +87,11 @@ export function AssignmentScreen() {
                 <option value="">— Choisir —</option>
                 {characterIds.map((cid) => {
                   const character = characters.find((c) => c.id === cid)
-                  const disabled = usedElsewhere(cid, player.id)
+                  const holder = players.find((p) => p.id !== player.id && assignments[p.id] === cid)
                   return (
-                    <option key={cid} value={cid} disabled={disabled}>
+                    <option key={cid} value={cid}>
                       {character?.nameFr ?? cid}
-                      {disabled ? ' (déjà attribué)' : ''}
+                      {holder ? ` (actuellement : ${holder.name})` : ''}
                     </option>
                   )
                 })}
@@ -92,9 +99,10 @@ export function AssignmentScreen() {
             </li>
           ))}
         </ul>
-        {!allDistinct && allAssigned && (
-          <p className="text-sm text-danger">Chaque personnage ne peut être attribué qu'à un seul joueur.</p>
-        )}
+        <p className="text-xs text-ink-2">
+          Choisir un rôle déjà attribué à quelqu'un d'autre le lui retire automatiquement pour le donner à ce
+          joueur.
+        </p>
       </div>
     </Screen>
   )

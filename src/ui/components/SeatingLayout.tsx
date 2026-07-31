@@ -148,6 +148,13 @@ export function SeatingLayout({
       className="relative mx-auto select-none mb-14"
       style={{ width: `min(${size}px, 92vw)`, height: `min(${size}px, 92vw)` }}
     >
+      <div
+        className="pointer-events-none absolute inset-[15%] rounded-full border border-accent/20 bg-surface-1/20 shadow-[inset_0_0_80px_rgba(177,138,255,0.05)]"
+        aria-hidden="true"
+      >
+        <div className="absolute inset-[7%] rounded-full border border-dashed border-border/70" />
+        <div className="absolute inset-[28%] rounded-full border border-accent/10" />
+      </div>
       {players.map((player) => {
         const pixel = pixelById.get(player.id)
         if (!pixel) return null

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useGameStore } from '@/store'
 import { isRoleShareHash } from '@/lib/roleShare'
 import { HomeScreen } from './ui/screens/HomeScreen'
@@ -35,33 +35,54 @@ function App() {
     return <HomeScreen onOpenCharacterReference={() => setShowReference(true)} />
   }
 
-  if (viewGrimoire) {
-    return <GrimoireScreen onGoHome={closeGame} onBack={() => setViewGrimoire(false)} />
-  }
-
+  // Le grimoire s'affiche en superposition plutôt qu'en remplacement de l'écran courant : sinon
+  // React démonte l'écran actif (ex. l'assistant de nuit) en y accédant puis en revenant, ce qui
+  // réinitialise sa progression (retour à l'étape 1 de la nuit) — un aller-retour vers le
+  // grimoire doit pouvoir se faire sans perdre sa place.
+  let phaseScreen: ReactNode
   switch (game.phase) {
     case 'setup.players':
-      return <PlayersSetupScreen />
+      phaseScreen = <PlayersSetupScreen />
+      break
     case 'setup.composition':
-      return <CompositionSetupScreen />
+      phaseScreen = <CompositionSetupScreen />
+      break
     case 'setup.assignment':
-      return <AssignmentScreen />
+      phaseScreen = <AssignmentScreen />
+      break
     case 'setup.preparation':
-      return <PreparationScreen />
+      phaseScreen = <PreparationScreen />
+      break
     case 'setup.seating':
-      return <SeatingSetupScreen />
+      phaseScreen = <SeatingSetupScreen />
+      break
     case 'setup.reveal':
-      return <RevealScreen />
+      phaseScreen = <RevealScreen />
+      break
     case 'night.first':
     case 'night.other':
-      return <NightAssistantScreen onOpenGrimoire={() => setViewGrimoire(true)} />
+      phaseScreen = <NightAssistantScreen onOpenGrimoire={() => setViewGrimoire(true)} />
+      break
     case 'day.discussion':
-      return <DayScreen onOpenGrimoire={() => setViewGrimoire(true)} />
+      phaseScreen = <DayScreen onOpenGrimoire={() => setViewGrimoire(true)} />
+      break
     case 'game.ended':
-      return <GameEndScreen onGoHome={closeGame} />
+      phaseScreen = <GameEndScreen onGoHome={closeGame} />
+      break
     default:
-      return <GrimoireScreen onGoHome={closeGame} />
+      phaseScreen = <GrimoireScreen onGoHome={closeGame} />
   }
+
+  return (
+    <>
+      {phaseScreen}
+      {viewGrimoire && (
+        <div className="fixed inset-0 z-40">
+          <GrimoireScreen onGoHome={closeGame} onBack={() => setViewGrimoire(false)} />
+        </div>
+      )}
+    </>
+  )
 }
 
 export default App

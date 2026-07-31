@@ -9,7 +9,7 @@ export type CharacterCategory = 'townsfolk' | 'outsider' | 'minion' | 'demon'
 /** Alignement réel du personnage (fixe, indépendant de ce qu'il "semble" être). */
 export type Team = 'good' | 'evil'
 
-export type ScriptId = 'trouble-brewing'
+export type ScriptId = 'trouble-brewing' | 'bad-moon-rising'
 
 /**
  * À quel rythme le pouvoir s'exerce.
