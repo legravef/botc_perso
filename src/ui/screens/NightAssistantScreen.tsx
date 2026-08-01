@@ -66,6 +66,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [index, setIndex] = useState(0)
   const [targetId, setTargetId] = useState('')
   const [showReveal, setShowReveal] = useState(false)
+  const [showGoonAlignment, setShowGoonAlignment] = useState(false)
   const [bmrTargetIds, setBmrTargetIds] = useState<string[]>([])
   const [bmrDrunkPlayerId, setBmrDrunkPlayerId] = useState('')
   const [bmrCharacterChoice, setBmrCharacterChoice] = useState('')
@@ -86,6 +87,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   useEffect(() => {
     setTargetId('')
     setShowReveal(false)
+    setShowGoonAlignment(false)
     setBmrTargetIds([])
     setBmrDrunkPlayerId('')
     setBmrCharacterChoice('')
@@ -370,6 +372,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const roleRevealCharacter = roleRevealTarget?.realCharacterId
     ? getCharacterById(game.scriptId, roleRevealTarget.realCharacterId)
     : undefined
+  const goonWasTargeted = bmrCharacter?.id === 'goon' && !!actingPlayer?.reminders.some((reminder) => reminder.sourceCharacterId === 'goon-flip')
 
   // Les étapes "Information des Sbires"/"Information du Démon" n'ont pas de characterId unique
   // (plusieurs Sbires possibles) : on résout les icônes à afficher depuis les joueurs concernés.
@@ -457,6 +460,22 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
               <p className="text-xs text-ink-2 mb-1">Instruction</p>
               <p className="text-base">{step.instruction}</p>
             </div>
+
+            {bmrCharacter?.id === 'goon' && actingPlayer && (
+              <div className={`rounded-xl border p-4 flex flex-col gap-3 ${goonWasTargeted ? 'bg-warn/10 border-warn/40' : 'bg-surface-2 border-border'}`}>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-accent mb-1">Guide MJ — Bras droit</p>
+                  {nightType === 'first' ? (
+                    <p className="text-sm">C’est la première nuit : réveillez {actingPlayer.name} et montrez-lui uniquement son alignement initial. Ne montrez ni rôle, ni nom de joueur.</p>
+                  ) : goonWasTargeted ? (
+                    <p className="text-sm">Le Bras droit a été ciblé cette nuit : le premier joueur qui l’a ciblé est désormais ivre et son alignement a été mis à jour. Réveillez {actingPlayer.name} pour lui montrer son nouvel alignement, sans expliquer pourquoi.</p>
+                  ) : (
+                    <p className="text-sm">Le Bras droit n’a pas été ciblé cette nuit : aucune information nouvelle à lui donner. Vous pouvez passer cette étape sans le réveiller.</p>
+                  )}
+                </div>
+                {(nightType === 'first' || goonWasTargeted) && <Button variant="secondary" onClick={() => setShowGoonAlignment(true)} className="self-start">Afficher l’alignement à {actingPlayer.name}</Button>}
+              </div>
+            )}
 
             {step.resolvedInfo && (
               <div className="bg-surface-2 border border-accent/40 rounded-lg p-3">
@@ -794,6 +813,15 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
           </>
         )}
         <p className="text-ink-2 text-xs mt-4">Touchez l'écran, espace ou échap pour masquer</p>
+      </div>
+    )}
+    {showGoonAlignment && actingPlayer && (
+      <div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-6" onClick={() => setShowGoonAlignment(false)} role="dialog" aria-modal="true" aria-label="Alignement du Bras droit">
+        <div className={`w-full max-w-xl rounded-3xl border p-10 text-center shadow-2xl ${actingPlayer.alignment === 'good' ? 'border-good bg-good-bg' : 'border-evil bg-evil-bg'}`} onClick={(event) => event.stopPropagation()}>
+          <p className="text-sm uppercase tracking-[0.22em] text-ink-2">Votre alignement est</p>
+          <p className={`mt-5 text-6xl font-bold ${actingPlayer.alignment === 'good' ? 'text-good' : 'text-evil'}`}>{actingPlayer.alignment === 'good' ? 'GENTIL' : 'MÉCHANT'}</p>
+          <Button variant="ghost" className="mt-10" onClick={() => setShowGoonAlignment(false)}>Masquer</Button>
+        </div>
       </div>
     )}
     </>
