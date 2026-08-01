@@ -24,6 +24,8 @@ const BAD_MOON_ICON_FILES: Record<string, string> = {
   innkeeper: 'Aubergiste.png', gambler: 'Icon_gambler.png', gossip: 'Icon_gossip.png', courtier: 'Icon_courtier.png',
   professor: 'Icon_professor.png', minstrel: 'Icon_minstrel.png', 'tea-lady': 'Icon_tealady.png', pacifist: 'Icon_pacifist.png',
   fool: 'Icon_fool.png', goon: 'Icon_goon.png', lunatic: 'Icon_lunatic.png', tinker: 'Icon_tinker.png', moonchild: 'Icon_moonchild.png',
+  godfather: 'Icon_godfather.png', 'devils-advocate': 'Icon_devilsadvocate.png', assassin: 'Icon_assassin.png', mastermind: 'Icon_mastermind.png',
+  zombuul: 'Icon_zombuul.png', pukka: 'Icon_pukka.png', shabaloth: 'Icon_shabaloth.png', po: 'Icon_po.png',
 }
 
 for (const [characterId, fileName] of Object.entries(BAD_MOON_ICON_FILES)) {

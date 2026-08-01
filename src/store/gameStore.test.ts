@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useGameStore } from './gameStore'
 import { loadGameFromStorage } from './persistence'
-import { validateComposition } from '@/engine'
+import { suggestWinCondition, validateComposition } from '@/engine'
 import { createPlayer } from '@/lib/factories'
 import type { Player } from '@/types'
 
@@ -483,5 +483,110 @@ describe('useGameStore — résolution centralisée des morts nocturnes', () => 
 
     useGameStore.getState().resolveNightDeaths([target.id], 'zombuul')
     expect(useGameStore.getState().game?.players[0]?.alive).toBe(false)
+  })
+
+  it('l\'Herboriste protège ses voisins vivants les plus proches, la nuit et à l\'exécution, tant qu\'ils sont bons', () => {
+    useGameStore.getState().createGame('bad-moon-rising')
+    const [p0, p1, p2] = Array.from({ length: 3 }, (_, i) => createPlayer(`J${i}`, i)) as [Player, Player, Player]
+    useGameStore.getState().setPlayers([p0, { ...p1, realCharacterId: 'tea-lady' }, p2])
+
+    useGameStore.getState().resolveNightDeaths([p0.id], 'shabaloth')
+    expect(useGameStore.getState().game?.players.find((p) => p.id === p0.id)?.alive).toBe(true)
+
+    useGameStore.getState().resolveExecution(p2.id)
+    expect(useGameStore.getState().game?.players.find((p) => p.id === p2.id)?.alive).toBe(true)
+  })
+
+  it('le Marin n\'est immunisé la nuit que s\'il reste sobre', () => {
+    useGameStore.getState().createGame('bad-moon-rising')
+    const [sailor] = sevenPlayers() as [Player]
+    useGameStore.getState().setPlayers([{ ...sailor, realCharacterId: 'sailor' }])
+
+    useGameStore.getState().resolveNightDeaths([sailor.id], 'shabaloth')
+    expect(useGameStore.getState().game?.players[0]?.alive).toBe(true)
+
+    useGameStore.getState().addReminder(sailor.id, 'Ivre (Marin)', 'sailor')
+    useGameStore.getState().resolveNightDeaths([sailor.id], 'shabaloth')
+    expect(useGameStore.getState().game?.players[0]?.alive).toBe(false)
+  })
+
+  it('le Bouffon et le Zombuul survivent aussi à leur première mort par exécution, pas seulement la nuit', () => {
+    useGameStore.getState().createGame('bad-moon-rising')
+    const [p0, p1] = Array.from({ length: 2 }, (_, i) => createPlayer(`J${i}`, i)) as [Player, Player]
+    useGameStore.getState().setPlayers([{ ...p0, realCharacterId: 'fool' }, { ...p1, realCharacterId: 'zombuul' }])
+
+    useGameStore.getState().resolveExecution(p0.id)
+    expect(useGameStore.getState().game?.players.find((p) => p.id === p0.id)?.alive).toBe(true)
+
+    useGameStore.getState().resolveExecution(p1.id)
+    expect(useGameStore.getState().game?.players.find((p) => p.id === p1.id)?.alive).toBe(true)
+  })
+
+  it('la Grand-mère meurt si le Démon tue le joueur qu\'elle a vu la première nuit', () => {
+    useGameStore.getState().createGame('bad-moon-rising')
+    const [p0, p1, p2] = Array.from({ length: 3 }, (_, i) => createPlayer(`J${i}`, i)) as [Player, Player, Player]
+    useGameStore.getState().setPlayers([{ ...p0, realCharacterId: 'grandmother' }, p1, p2])
+    useGameStore.getState().setPreparation({ grandmotherRevealPlayerId: p1.id })
+
+    useGameStore.getState().resolveNightDeaths([p1.id], 'shabaloth')
+    const game = useGameStore.getState().game!
+    expect(game.players.find((p) => p.id === p1.id)?.alive).toBe(false)
+    expect(game.players.find((p) => p.id === p0.id)?.alive).toBe(false)
+  })
+
+  it('la Grand-mère ne meurt pas si le joueur lié est protégé (donc ne meurt pas vraiment)', () => {
+    useGameStore.getState().createGame('bad-moon-rising')
+    const [p0, p1, p2] = Array.from({ length: 3 }, (_, i) => createPlayer(`J${i}`, i)) as [Player, Player, Player]
+    useGameStore.getState().setPlayers([{ ...p0, realCharacterId: 'grandmother' }, p1, p2])
+    useGameStore.getState().setPreparation({ grandmotherRevealPlayerId: p1.id })
+    useGameStore.getState().addReminder(p1.id, 'Protégé (Aubergiste)', 'innkeeper')
+
+    useGameStore.getState().resolveNightDeaths([p1.id], 'shabaloth')
+    const game = useGameStore.getState().game!
+    expect(game.players.find((p) => p.id === p1.id)?.alive).toBe(true)
+    expect(game.players.find((p) => p.id === p0.id)?.alive).toBe(true)
+  })
+})
+
+describe('useGameStore/winCondition — Cerveau (Mastermind)', () => {
+  function setupMastermindGame() {
+    useGameStore.getState().createGame('bad-moon-rising')
+    const players = Array.from({ length: 5 }, (_, i) => createPlayer(`J${i}`, i))
+    useGameStore.getState().setPlayers(players)
+    useGameStore.getState().setPlayerCharacter(players[0]!.id, 'shabaloth')
+    useGameStore.getState().setPlayerCharacter(players[1]!.id, 'mastermind')
+    useGameStore.getState().setPhase('day.discussion')
+    return players
+  }
+
+  it('rejoue un jour supplémentaire quand le Démon est exécuté avec un Cerveau vivant, puis tranche sur l\'exécution suivante', () => {
+    const players = setupMastermindGame()
+
+    useGameStore.getState().resolveExecution(players[0]!.id)
+    let game = useGameStore.getState().game!
+    expect(game.players.find((p) => p.id === players[0]!.id)?.alive).toBe(false)
+    expect(game.mastermindExtraDayDueOnDay).toBe(game.dayNumber + 1)
+    expect(suggestWinCondition(game, players[0]!.id)).toBeNull()
+
+    useGameStore.getState().startNextNight()
+    useGameStore.getState().completeNight()
+
+    useGameStore.getState().resolveExecution(players[1]!.id)
+    game = useGameStore.getState().game!
+    const suggestion = suggestWinCondition(game, players[1]!.id)
+    expect(suggestion?.winner).toBe('good')
+  })
+
+  it('si personne n\'est exécuté le jour supplémentaire, le Bien gagne', () => {
+    setupMastermindGame()
+    const players = useGameStore.getState().game!.players
+
+    useGameStore.getState().resolveExecution(players[0]!.id)
+    useGameStore.getState().startNextNight()
+    useGameStore.getState().completeNight()
+
+    const game = useGameStore.getState().game!
+    const suggestion = suggestWinCondition(game, null)
+    expect(suggestion?.winner).toBe('good')
   })
 })

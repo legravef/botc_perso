@@ -16,6 +16,8 @@ const EXECUTION_TRIGGERS_EVIL_WIN = new Set(['saint'])
  * cette victoire, seule une exécution le fait.
  */
 export function suggestWinCondition(game: Game, justExecutedPlayerId?: string | null): GameEndInfo | null {
+  const mastermindDueToday = game.mastermindExtraDayDueOnDay === game.dayNumber
+
   if (justExecutedPlayerId) {
     const executed = game.players.find((p) => p.id === justExecutedPlayerId)
     if (executed?.realCharacterId && EXECUTION_TRIGGERS_EVIL_WIN.has(executed.realCharacterId)) {
@@ -26,6 +28,24 @@ export function suggestWinCondition(game: Game, justExecutedPlayerId?: string | 
         confirmedAt: new Date().toISOString(),
       }
     }
+
+    // Cerveau (Mastermind) : le Démon a été exécuté un jour précédent alors qu'un Cerveau était
+    // vivant — cette exécution-ci, le jour supplémentaire, tranche la partie. L'équipe du joueur
+    // exécuté aujourd'hui perd.
+    if (mastermindDueToday && executed) {
+      const winner = executed.alignment === 'good' ? 'evil' : 'good'
+      return {
+        winner,
+        reason: `Cerveau : jour supplémentaire après l'exécution du Démon. ${executed.name} (${executed.alignment === 'good' ? 'gentil' : 'méchant'}) a été exécuté(e) aujourd'hui : son équipe perd.`,
+        confirmedAt: new Date().toISOString(),
+      }
+    }
+  } else if (mastermindDueToday) {
+    return {
+      winner: 'good',
+      reason: "Cerveau : jour supplémentaire après l'exécution du Démon. Personne n'a été exécuté aujourd'hui : le Bien gagne.",
+      confirmedAt: new Date().toISOString(),
+    }
   }
 
   const living = game.players.filter((p) => p.alive)
@@ -34,6 +54,12 @@ export function suggestWinCondition(game: Game, justExecutedPlayerId?: string | 
   )
 
   if (!demonAlive) {
+    // Un Cerveau vivant vient de transformer cette exécution du Démon en jour supplémentaire
+    // (voir resolveExecution) : ne pas terminer la partie tout de suite, elle se réglera au jour
+    // suivant via la branche mastermindDueToday ci-dessus.
+    if (game.mastermindExtraDayDueOnDay === game.dayNumber + 1) {
+      return null
+    }
     return {
       winner: 'good',
       reason: 'Le Démon est mort : le Bien gagne.',

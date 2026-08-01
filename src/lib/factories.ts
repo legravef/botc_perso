@@ -27,5 +27,6 @@ export function createEmptyPreparation(): Preparation {
     fortuneTellerRedHerringPlayerId: null,
     drunkBelievedCharacterId: null,
     impBluffCharacterIds: [],
+    grandmotherRevealPlayerId: null,
   }
 }

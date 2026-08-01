@@ -32,6 +32,7 @@ export function CompositionSetupScreen() {
   const game = useGameStore((s) => s.game)
   const setComposition = useGameStore((s) => s.setComposition)
   const setStorytellerLevel = useGameStore((s) => s.setStorytellerLevel)
+  const setGodfatherOutsiderDelta = useGameStore((s) => s.setGodfatherOutsiderDelta)
   const setPhase = useGameStore((s) => s.setPhase)
 
   const playerCount = game?.players.length ?? 0
@@ -41,10 +42,11 @@ export function CompositionSetupScreen() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(game?.composition?.characterIds ?? []))
   const [locked, setLocked] = useState<Set<string>>(new Set())
   const [randomError, setRandomError] = useState<string | null>(null)
+  const [godfatherDelta, setGodfatherDelta] = useState<-1 | 0 | 1>(game?.godfatherOutsiderDelta ?? 0)
 
   const composition = useMemo(
-    () => validateComposition([...selected], playerCount, scriptId),
-    [selected, playerCount, scriptId],
+    () => validateComposition([...selected], playerCount, scriptId, godfatherDelta),
+    [selected, playerCount, scriptId, godfatherDelta],
   )
 
   function toggleCharacter(id: string) {
@@ -97,6 +99,7 @@ export function CompositionSetupScreen() {
 
   function handleNext() {
     if (!composition.isValid) return
+    setGodfatherOutsiderDelta(godfatherDelta)
     setComposition(composition)
     setPhase('setup.assignment')
   }
@@ -147,6 +150,17 @@ export function CompositionSetupScreen() {
         {randomError && <p className="text-sm text-danger">{randomError}</p>}
 
         <CompositionSummary composition={composition} />
+
+        {scriptId === 'bad-moon-rising' && selected.has('godfather') && (
+          <section className="bg-warn/10 border border-warn/40 rounded-xl p-4">
+            <p className="text-sm font-medium">Parrain — variation de composition</p>
+            <p className="text-xs text-ink-2 mt-1">Choisissez le +1 ou -1 Paria imposé par le Parrain avant d'attribuer les rôles.</p>
+            <div className="flex gap-2 mt-3">
+              <Button variant={godfatherDelta === -1 ? 'primary' : 'secondary'} onClick={() => setGodfatherDelta(-1)}>−1 Paria</Button>
+              <Button variant={godfatherDelta === 1 ? 'primary' : 'secondary'} onClick={() => setGodfatherDelta(1)}>+1 Paria</Button>
+            </div>
+          </section>
+        )}
 
         {CATEGORY_ORDER.map((category) => (
           <CategorySection

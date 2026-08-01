@@ -72,6 +72,7 @@ function buildFixture() {
       fortuneTellerRedHerringPlayerId: empathP.id,
       drunkBelievedCharacterId: 'monk',
       impBluffCharacterIds: ['chef', 'virgin', 'saint'],
+      grandmotherRevealPlayerId: null,
     },
   })
 

@@ -38,6 +38,7 @@ export function applySetupModifiers(
   characterIds: string[],
   playerCount: number,
   scriptId: ScriptId,
+  godfatherOutsiderDelta: -1 | 0 | 1 = 0,
 ): EffectiveDistribution {
   const base = getBaseDistribution(playerCount)
   const effective = { ...base }
@@ -57,6 +58,16 @@ export function applySetupModifiers(
         description: `${character.nameFr} : +${modifier.count} Paria(s), -${modifier.count} Villageois(s).`,
       })
     }
+    if (modifier.type === 'choose-outsider-delta') {
+      if (godfatherOutsiderDelta !== 0) {
+        effective.outsider += godfatherOutsiderDelta
+        effective.townsfolk -= godfatherOutsiderDelta
+        appliedModifiers.push({
+          characterId: id,
+          description: `${character.nameFr} : ${godfatherOutsiderDelta > 0 ? '+1' : '-1'} Paria, ${godfatherOutsiderDelta > 0 ? '-1' : '+1'} Villageois.`,
+        })
+      }
+    }
   }
 
   return { base, effective, appliedModifiers }
@@ -72,6 +83,7 @@ export function validateComposition(
   characterIds: string[],
   playerCount: number,
   scriptId: ScriptId,
+  godfatherOutsiderDelta: -1 | 0 | 1 = 0,
 ): Composition {
   const errors: string[] = []
   const warnings: string[] = []
@@ -102,7 +114,7 @@ export function validateComposition(
 
   const validIds = [...occurrences.keys()].filter((id) => characters.some((c) => c.id === id))
   const clampedPlayerCount = Math.min(Math.max(playerCount, MIN_PLAYERS), MAX_PLAYERS)
-  const { base, effective, appliedModifiers } = applySetupModifiers(validIds, clampedPlayerCount, scriptId)
+  const { base, effective, appliedModifiers } = applySetupModifiers(validIds, clampedPlayerCount, scriptId, godfatherOutsiderDelta)
 
   const actualCounts: CategoryCounts = { townsfolk: 0, outsider: 0, minion: 0, demon: 0 }
   for (const id of validIds) {

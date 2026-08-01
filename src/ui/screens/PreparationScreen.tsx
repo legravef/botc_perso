@@ -113,6 +113,7 @@ export function PreparationScreen() {
   const needsInvestigator = inPlay('investigator')
   const needsFortuneTeller = inPlay('fortune-teller')
   const needsDrunk = inPlay('drunk')
+  const needsGrandmother = inPlay('grandmother')
   const demon = game.players
     .map((player) => ({ player, character: player.realCharacterId ? getCharactersForScript(game.scriptId).find((c) => c.id === player.realCharacterId) : undefined }))
     .find(({ character }) => character?.category === 'demon')?.character
@@ -139,7 +140,8 @@ export function PreparationScreen() {
     (!needsInvestigator || !!game.preparation.investigator) &&
     (!needsFortuneTeller || !!game.preparation.fortuneTellerRedHerringPlayerId) &&
     (!needsDrunk || !!game.preparation.drunkBelievedCharacterId) &&
-    (!needsDemonBluffs || game.preparation.impBluffCharacterIds.length === 3)
+    (!needsDemonBluffs || game.preparation.impBluffCharacterIds.length === 3) &&
+    (!needsGrandmother || !!game.preparation.grandmotherRevealPlayerId)
 
   function handleNext() {
     if (!ready) return
@@ -232,6 +234,33 @@ export function PreparationScreen() {
           </div>
         )}
 
+        {needsGrandmother && (
+          <div className="bg-surface-1 border border-border rounded-lg p-4">
+            <h3 className="font-medium mb-2">Grand-mère — joueur montré</h3>
+            <p className="text-xs text-ink-2 mb-2">
+              Un joueur gentil (hors Grand-mère) dont le rôle lui sera montré la première nuit. Si le
+              Démon le tue plus tard, la Grand-mère meurt aussi — l'appli surveille ce lien pour vous.
+            </p>
+            <select
+              value={game.preparation.grandmotherRevealPlayerId ?? ''}
+              onChange={(e) => {
+                setPreparation({ grandmotherRevealPlayerId: e.target.value || null })
+                applyNightlyReminder('grandmother', 'Lien (Grand-mère)', e.target.value)
+              }}
+              className="w-full bg-surface-2 border border-border rounded px-2 py-2"
+            >
+              <option value="">— Choisir —</option>
+              {goodPlayers
+                .filter((p) => p.realCharacterId !== 'grandmother')
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+
         {needsDrunk && (
           <div className="bg-surface-1 border border-border rounded-lg p-4">
             <h3 className="font-medium mb-2">Ivrogne — personnage cru</h3>
@@ -255,9 +284,9 @@ export function PreparationScreen() {
 
         {needsDemonBluffs && (
           <div className="bg-surface-1 border border-border rounded-lg p-4">
-            <h3 className="font-medium mb-2">Diablotin — 3 bluffs</h3>
+            <h3 className="font-medium mb-2">{demon?.nameFr ?? 'Démon'} — 3 bluffs</h3>
             <p className="text-xs text-ink-2 mb-2">
-              Trois personnages absents (Villageois ou Paria) donnés au Diablotin comme bluffs.
+              Trois personnages absents (Villageois ou Paria) donnés au {demon?.nameFr ?? 'Démon'} comme bluffs.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[0, 1, 2].map((slot) => {

@@ -131,6 +131,37 @@ function buildCharacterStep(game: Game, character: Character, player: Player): N
       }
     case 'spy':
       return { ...base, instruction: 'Montrez-lui le grimoire (tous les rôles réels, vivants et morts).' }
+    case 'grandmother': {
+      const revealPlayer = game.players.find((p) => p.id === game.preparation.grandmotherRevealPlayerId)
+      if (!revealPlayer) {
+        return {
+          ...base,
+          instruction: 'Préparation manquante pour ce personnage — retournez à l\'étape de préparation.',
+        }
+      }
+      const revealCharacter = revealPlayer.realCharacterId
+        ? getCharacterById(game.scriptId, revealPlayer.realCharacterId)
+        : undefined
+      return {
+        ...base,
+        instruction: `Montrez-lui ${revealPlayer.name} et son rôle réel.`,
+        resolvedInfo: `Joueur montré : ${revealPlayer.name} (${revealCharacter?.nameFr ?? '?'}). Si le Démon le tue plus tard, la Grand-mère mourra aussi — l'appli le fera automatiquement.`,
+      }
+    }
+    case 'godfather': {
+      const outsiders = game.players.filter((p) => {
+        const c = p.realCharacterId ? getCharacterById(game.scriptId, p.realCharacterId) : undefined
+        return c?.category === 'outsider'
+      })
+      const names = outsiders
+        .map((p) => (p.realCharacterId ? getCharacterById(game.scriptId, p.realCharacterId)?.nameFr : undefined))
+        .filter((n): n is string => Boolean(n))
+      return {
+        ...base,
+        instruction: 'Indiquez-lui quels Parias sont en jeu (sans révéler qui les possède).',
+        resolvedInfo: names.length > 0 ? `Parias en jeu : ${names.join(', ')}.` : 'Aucun Paria en jeu.',
+      }
+    }
     default:
       return { ...base, instruction: character.shortDescription }
   }

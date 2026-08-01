@@ -43,20 +43,33 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const startNextNight = useGameStore((s) => s.startNextNight)
   const resolveExecution = useGameStore((s) => s.resolveExecution)
   const endGame = useGameStore((s) => s.endGame)
+  const addReminder = useGameStore((s) => s.addReminder)
+  const setGossipKillDue = useGameStore((s) => s.setGossipKillDue)
+  const setMoonchildTarget = useGameStore((s) => s.setMoonchildTarget)
   const history = useGameStore((s) => s.history)
 
   const [executedPlayerId, setExecutedPlayerId] = useState(NO_EXECUTION)
+  const [pacifistSaves, setPacifistSaves] = useState(false)
   const [winSuggestion, setWinSuggestion] = useState<ReturnType<typeof suggestWinCondition>>(null)
   const [showManualEnd, setShowManualEnd] = useState(false)
   const [manualWinner, setManualWinner] = useState<'good' | 'evil'>('good')
   const [manualReason, setManualReason] = useState('')
   const [showNoExecutionConfirm, setShowNoExecutionConfirm] = useState(false)
+  const [gossipWasTrue, setGossipWasTrue] = useState(false)
+  const [moonchildTargetId, setMoonchildTargetId] = useState('')
 
   if (!game) return null
 
   const deadPlayers = game.players.filter((p) => !p.alive)
   const livingPlayers = game.players.filter((p) => p.alive)
   const opening = openingForGame(game.scriptId, game.id)
+  const executedCandidate = executedPlayerId ? game.players.find((p) => p.id === executedPlayerId) : undefined
+  const pacifistAlive = game.players.some((p) => p.alive && p.realCharacterId === 'pacifist')
+  const showPacifistChoice = game.scriptId === 'bad-moon-rising' && pacifistAlive && executedCandidate?.alignment === 'good'
+  const gossipPlayer = game.scriptId === 'bad-moon-rising'
+    ? game.players.find((player) => player.alive && player.realCharacterId === 'gossip' && !player.reminders.some((reminder) => ['courtier', 'sailor', 'innkeeper', 'goon', 'minstrel', 'pukka'].includes(reminder.sourceCharacterId)))
+    : undefined
+  const showMoonchildChoice = game.scriptId === 'bad-moon-rising' && executedCandidate?.realCharacterId === 'moonchild'
 
   function handleConfirm() {
     if (!executedPlayerId) {
@@ -67,9 +80,16 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   }
 
   function finishDay() {
+    if (executedPlayerId && showPacifistChoice && pacifistSaves) {
+      addReminder(executedPlayerId, 'Protégé (Pacifiste)', 'pacifist')
+    }
     resolveExecution(executedPlayerId || null)
     const updatedGame = useGameStore.getState().game
     if (!updatedGame) return
+    if (gossipWasTrue && gossipPlayer) setGossipKillDue(true)
+    if (showMoonchildChoice && moonchildTargetId && updatedGame.players.find((player) => player.id === executedPlayerId)?.alive === false) {
+      setMoonchildTarget(moonchildTargetId, updatedGame.players.find((player) => player.id === moonchildTargetId)?.alignment === 'good')
+    }
     const suggestion = suggestWinCondition(updatedGame, executedPlayerId || null)
     if (suggestion) {
       setWinSuggestion(suggestion)
@@ -178,10 +198,34 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
               </option>
             ))}
           </select>
-          <Button variant={executedPlayerId ? 'secondary' : 'primary'} className="self-start px-3 py-2 text-sm" onClick={() => setExecutedPlayerId(NO_EXECUTION)}>
+          <Button variant={executedPlayerId ? 'secondary' : 'primary'} className="self-start px-3 py-2 text-sm" onClick={() => { setExecutedPlayerId(NO_EXECUTION); setPacifistSaves(false) }}>
             Personne n'a été exécuté
           </Button>
-          <PlayerChoiceGrid players={livingPlayers} selectedIds={executedPlayerId ? [executedPlayerId] : []} onSelect={setExecutedPlayerId} />
+          <PlayerChoiceGrid players={livingPlayers} selectedIds={executedPlayerId ? [executedPlayerId] : []} onSelect={(id) => { setExecutedPlayerId(id); setPacifistSaves(false) }} />
+          {showPacifistChoice && (
+            <div className="bg-warn/10 border border-warn/40 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-warn mb-1">Décision du Conteur — Pacifiste</p>
+                <p className="text-sm">{executedCandidate?.name} est gentil(le) : le Pacifiste peut le/la sauver.</p>
+              </div>
+              <Button variant={pacifistSaves ? 'primary' : 'secondary'} onClick={() => setPacifistSaves((v) => !v)}>
+                {pacifistSaves ? 'Sauvé par le Pacifiste' : 'Le sauver'}
+              </Button>
+            </div>
+          )}
+          {gossipPlayer && (
+            <div className="bg-accent/10 border border-accent/35 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+              <div><p className="text-xs uppercase tracking-wide text-accent mb-1">Pipelette</p><p className="text-sm">Une déclaration publique de {gossipPlayer.name} était-elle vraie ?</p></div>
+              <Button variant={gossipWasTrue ? 'primary' : 'secondary'} onClick={() => setGossipWasTrue((value) => !value)}>{gossipWasTrue ? 'Vraie : mort prévue cette nuit' : 'Marquer comme vraie'}</Button>
+            </div>
+          )}
+          {showMoonchildChoice && (
+            <div className="bg-warn/10 border border-warn/40 rounded-lg px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-warn mb-1">Moonchild — choix public si sa mort est annoncée</p>
+              <p className="text-sm mb-2">Choisissez le joueur vivant ciblé. Il mourra la nuit suivante uniquement s’il est gentil au moment de ce choix.</p>
+              <PlayerChoiceGrid players={livingPlayers.filter((player) => player.id !== executedCandidate?.id)} selectedIds={moonchildTargetId ? [moonchildTargetId] : []} onSelect={setMoonchildTargetId} />
+            </div>
+          )}
         </section>
 
         <Button variant="secondary" onClick={onOpenGrimoire} className="self-start">

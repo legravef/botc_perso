@@ -36,6 +36,7 @@ export type SelectionType =
  */
 export type SetupModifier =
   | { type: 'add-outsiders-remove-townsfolk'; count: number } // Baron
+  | { type: 'choose-outsider-delta'; choices: readonly [-1, 1] } // Godfather
   | null
 
 export interface Character {

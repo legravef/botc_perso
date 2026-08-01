@@ -70,6 +70,8 @@ export interface Preparation {
   drunkBelievedCharacterId: string | null
   /** Jusqu'à 3 personnages absents utilisés comme bluffs par le Diablotin. */
   impBluffCharacterIds: string[]
+  /** Bad Moon Rising — joueur bon montré à la Grand-mère la première nuit (aussi utilisé pour sa malédiction). */
+  grandmotherRevealPlayerId: string | null
 }
 
 export interface Game {
@@ -89,6 +91,27 @@ export interface Game {
 
   /** Dernier joueur exécuté : utilisé pour déclencher le Croque-mort la nuit suivante. */
   lastExecutedPlayerId?: string | null
+
+  /** Bad Moon Rising — Cerveau : numéro du jour où une exécution en attente doit trancher la
+   * partie (démon exécuté avec un Cerveau vivant). null si aucun jour supplémentaire n'est dû. */
+  mastermindExtraDayDueOnDay?: number | null
+  /** Bad Moon Rising — Po : le prochain réveil doit tuer 3 joueurs car Po n'a tué personne la nuit précédente. */
+  poMustKillThree?: boolean
+  /** Bad Moon Rising — Courtisane : numéro de nuit après lequel le rappel "Ivre" posé par la Courtisane doit être retiré automatiquement. */
+  courtierExpiresOnNight?: number | null
+  /** Bad Moon Rising — Parrain : variation choisie à la composition (+1 ou -1 Paria). */
+  godfatherOutsiderDelta?: -1 | 0 | 1
+  /** Bad Moon Rising — mémoire de la cible de l’Exorciste. */
+  lastExorcistTargetId?: string | null
+  /** Bad Moon Rising — le Parrain peut tuer cette nuit après la mort diurne d’un Paria. */
+  godfatherKillDue?: boolean
+  /** Bad Moon Rising — victimes de la dernière attaque du Shabaloth, disponibles à la régurgitation. */
+  shabalothVictimIds?: string[]
+  /** Bad Moon Rising — Pipelette : une déclaration vraie impose une mort la nuit suivante. */
+  gossipKillDue?: boolean
+  /** Bad Moon Rising — Moonchild : cible choisie publiquement au moment de sa mort. */
+  moonchildTargetId?: string | null
+  moonchildTargetWasGood?: boolean | null
 
   gameNotes: PlayerNote[]
 

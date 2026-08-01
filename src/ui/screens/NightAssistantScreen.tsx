@@ -55,6 +55,14 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const resolveNightDeaths = useGameStore((s) => s.resolveNightDeaths)
   const revivePlayer = useGameStore((s) => s.revivePlayer)
   const setPlayerCharacter = useGameStore((s) => s.setPlayerCharacter)
+  const setPlayerAlignment = useGameStore((s) => s.setPlayerAlignment)
+  const setPoMustKillThree = useGameStore((s) => s.setPoMustKillThree)
+  const setCourtierExpiry = useGameStore((s) => s.setCourtierExpiry)
+  const setLastExorcistTarget = useGameStore((s) => s.setLastExorcistTarget)
+  const setGodfatherKillDue = useGameStore((s) => s.setGodfatherKillDue)
+  const setShabalothVictims = useGameStore((s) => s.setShabalothVictims)
+  const setGossipKillDue = useGameStore((s) => s.setGossipKillDue)
+  const setMoonchildTarget = useGameStore((s) => s.setMoonchildTarget)
   const [index, setIndex] = useState(0)
   const [targetId, setTargetId] = useState('')
   const [showReveal, setShowReveal] = useState(false)
@@ -68,6 +76,9 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [nightOutcome, setNightOutcome] = useState<string | null>(null)
   const [roleRevealRequest, setRoleRevealRequest] = useState<{ actorId: string; title: string } | null>(null)
   const [roleRevealTargetId, setRoleRevealTargetId] = useState('')
+  const [bmrReviveTargetId, setBmrReviveTargetId] = useState('')
+  const [bmrInfoResult, setBmrInfoResult] = useState<string | null>(null)
+  const [specialKillTargetId, setSpecialKillTargetId] = useState('')
 
   const nightType = game?.phase === 'night.first' ? 'first' : 'other'
   const steps = useMemo(() => (game ? generateNightSteps(game, nightType) : []), [game, nightType])
@@ -85,6 +96,9 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setNightOutcome(null)
     setRoleRevealRequest(null)
     setRoleRevealTargetId('')
+    setBmrReviveTargetId('')
+    setBmrInfoResult(null)
+    setSpecialKillTargetId('')
   }, [index])
 
   useEffect(() => {
@@ -110,14 +124,22 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const actingPlayerId = step?.playerIds[0]
   const eligiblePlayers = autoConfig && actingPlayerId ? autoConfig.getEligiblePlayers(game, actingPlayerId) : []
   const bmrCharacter = step?.characterId ? getCharacterById(game.scriptId, step.characterId) : undefined
+  const actingPlayer = actingPlayerId ? game.players.find((player) => player.id === actingPlayerId) : undefined
+  const hasUsedBmrPower = !!actingPlayer && !!bmrCharacter && actingPlayer.notes.some((note) => note.text.includes(`[BMR:${bmrCharacter.id}]`))
+  const isExorcisedDemon = !!actingPlayer && bmrCharacter?.category === 'demon' && actingPlayer.reminders.some((reminder) => reminder.sourceCharacterId === 'exorcist')
+  const godfatherCanKill = bmrCharacter?.id !== 'godfather' || !!game.godfatherKillDue
   const isBmrAction =
     game.scriptId === 'bad-moon-rising' &&
     !!bmrCharacter &&
     !step?.isSimulated &&
-    (bmrCharacter.targetCount > 0 || bmrCharacter.id === 'courtier')
-  const bmrEligiblePlayers = game.players.filter((player) =>
-    bmrCharacter?.id === 'professor' ? !player.alive : player.alive && player.id !== actingPlayerId,
-  )
+    (bmrCharacter.targetCount > 0 || bmrCharacter.id === 'courtier') &&
+    !isExorcisedDemon && godfatherCanKill
+  const bmrEligiblePlayers = game.players.filter((player) => {
+    if (bmrCharacter?.id === 'professor') return !player.alive
+    if (['gambler', 'assassin'].includes(bmrCharacter?.id ?? '')) return true
+    if (bmrCharacter?.id === 'exorcist') return player.alive && player.id !== game.lastExorcistTargetId
+    return player.alive
+  })
   const isImpKillAction = step?.characterId === 'imp' && !step.isSimulated
   const selectedDemonTargetIds = isImpKillAction
     ? (impTargetId ? [impTargetId] : [])
@@ -158,11 +180,20 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     applyNightlyReminder(step.characterId, autoConfig.buildLabel(target), reminderPlayerId)
   }
 
+  const isPoForced = bmrCharacter?.id === 'po' && !!game.poMustKillThree
+  const bmrEffectiveTargetCount = bmrCharacter?.id === 'po' ? (isPoForced ? 3 : 1) : (bmrCharacter?.targetCount ?? 0)
+
+  function bmrTargetSelectionValid(): boolean {
+    if (!bmrCharacter) return false
+    if (bmrCharacter.id === 'po') return isPoForced ? bmrTargetIds.length === 3 : bmrTargetIds.length <= 1
+    return bmrTargetIds.length === bmrCharacter.targetCount
+  }
+
   function toggleBmrTarget(playerId: string) {
     if (!bmrCharacter) return
     setBmrTargetIds((current) => {
       if (current.includes(playerId)) return current.filter((id) => id !== playerId)
-      if (current.length >= bmrCharacter.targetCount) return [...current.slice(1), playerId]
+      if (current.length >= bmrEffectiveTargetCount) return [...current.slice(1), playerId]
       return [...current, playerId]
     })
   }
@@ -170,6 +201,11 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   function reportDemonOutcome(targetIds: string[], demonName: string) {
     const updatedGame = useGameStore.getState().game
     if (!updatedGame) return
+    const zombuulFeigningDeath = updatedGame.players.filter((player) => targetIds.includes(player.id) && player.realCharacterId === 'zombuul' && player.reminders.some((reminder) => reminder.sourceCharacterId === 'zombuul'))
+    if (zombuulFeigningDeath.length > 0) {
+      setNightOutcome(`${zombuulFeigningDeath.map((player) => player.name).join(', ')} doit paraître mort(e) publiquement, mais reste réellement en vie : gardez le jeton « Mort vivant » comme rappel MJ.`)
+      return
+    }
     const saved = updatedGame.players.filter((player) => targetIds.includes(player.id) && player.alive)
     if (saved.length > 0) {
       setNightOutcome(`${saved.map((player) => player.name).join(', ')} ne meurt pas : une protection ou une immunité a empêché l'attaque de ${demonName}.`)
@@ -192,22 +228,48 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
 
   function recordBmrAction() {
     if (!game || !bmrCharacter || !actingPlayerId) return
+    if (hasUsedBmrPower) return
+    const actorIsDrunk = !!actingPlayer?.reminders.some((reminder) => ['courtier', 'sailor', 'innkeeper', 'goon', 'minstrel', 'pukka'].includes(reminder.sourceCharacterId) && reminder.label.startsWith('Ivre'))
+    if (actorIsDrunk) {
+      addNote(actingPlayerId, `Pouvoir sans effet : ${bmrCharacter.nameFr} est ivre ou empoisonné.`, 'power-used')
+      setBmrRecorded(true)
+      return
+    }
     if (bmrCharacter.id === 'courtier') {
       if (!bmrCharacterChoice) return
       const chosen = getCharacterById(game.scriptId, bmrCharacterChoice)
       const holder = game.players.find((player) => player.realCharacterId === bmrCharacterChoice)
-      addNote(actingPlayerId, `Courtisan : ${chosen?.nameFr ?? bmrCharacterChoice}`, 'power-used')
-      if (holder) addReminder(holder.id, 'Ivre (Courtisan : 3 jours et 3 nuits)', 'courtier')
+      addNote(actingPlayerId, `[BMR:courtier] Courtisane : ${chosen?.nameFr ?? bmrCharacterChoice}`, 'power-used')
+      if (holder) {
+        addReminder(holder.id, 'Ivre (Courtisane : 3 jours et 3 nuits)', 'courtier')
+        setCourtierExpiry(game.nightNumber + 3)
+      }
       setBmrRecorded(true)
       return
     }
-    if (bmrTargetIds.length !== bmrCharacter.targetCount) return
+    if (!bmrTargetSelectionValid()) return
     const targets = bmrTargetIds.map((id) => game.players.find((player) => player.id === id)).filter((p): p is Player => Boolean(p))
-    const targetNames = targets.map((player) => player.name).join(', ')
+    const targetNames = targets.length > 0 ? targets.map((player) => player.name).join(', ') : 'personne'
     const detail = bmrCharacter.id === 'gambler' && bmrCharacterChoice
       ? ` — annonce : ${getCharacterById(game.scriptId, bmrCharacterChoice)?.nameFr ?? bmrCharacterChoice}`
       : ''
-    addNote(actingPlayerId, `${bmrCharacter.nameFr} : ${targetNames}${detail}`, 'power-used')
+    addNote(actingPlayerId, `${['assassin', 'professor'].includes(bmrCharacter.id) ? `[BMR:${bmrCharacter.id}] ` : ''}${bmrCharacter.nameFr} : ${targetNames}${detail}`, 'power-used')
+
+    // Bras droit : le 1er joueur qui le cible cette nuit (toute capacité confondue) devient
+    // ivre jusqu'au prochain crépuscule, et le Bras droit prend son alignement.
+    const goonTarget = targets.find((player) => player.realCharacterId === 'goon')
+    if (goonTarget && !goonTarget.reminders.some((reminder) => reminder.sourceCharacterId === 'goon-flip')) {
+      const actor = game.players.find((player) => player.id === actingPlayerId)
+      if (actor) {
+        setPlayerAlignment(goonTarget.id, actor.alignment)
+        addReminder(actor.id, 'Ivre (a ciblé le Bras droit)', 'goon')
+        addReminder(goonTarget.id, `A changé d'équipe : ${actor.alignment === 'evil' ? 'Méchant' : 'Gentil'}`, 'goon-flip')
+      }
+    }
+
+    if (bmrCharacter.id === 'po') setPoMustKillThree(targets.length === 0)
+    if (bmrCharacter.id === 'exorcist') setLastExorcistTarget(targets[0]?.id ?? null)
+    if (bmrCharacter.id === 'godfather') setGodfatherKillDue(false)
 
     if (bmrCharacter.id === 'sailor') {
       const drunkId = bmrDrunkPlayerId || actingPlayerId
@@ -231,12 +293,25 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
       }
     }
 
-    if (BMR_KILLERS.has(bmrCharacter.id)) {
+    if (BMR_KILLERS.has(bmrCharacter.id) && targets.length > 0) {
       resolveNightDeaths(targets.map((target) => target.id), bmrCharacter.id, bmrCharacter.id === 'assassin')
       reportDemonOutcome(targets.map((target) => target.id), bmrCharacter.nameFr)
       queueDeathTriggeredReveal(targets.map((target) => target.id))
     }
-    if (bmrCharacter.id === 'professor') for (const target of targets) revivePlayer(target.id)
+    if (bmrCharacter.id === 'shabaloth') {
+      if (bmrReviveTargetId) revivePlayer(bmrReviveTargetId)
+      setShabalothVictims(targets.map((target) => target.id))
+    }
+    if (bmrCharacter.id === 'chambermaid') {
+      const awakened = targets.filter((target) => steps.some((nightStep) => nightStep.kind === 'character' && !nightStep.isSimulated && nightStep.playerIds.includes(target.id))).length
+      setBmrInfoResult(`Montrez ${awakened} au/à la Concierge. Les joueurs ivres ou empoisonnés comptent tout de même s’ils se sont réveillés à cause de leur pouvoir.`)
+    }
+    if (bmrCharacter.id === 'professor') {
+      for (const target of targets) {
+        const role = target.realCharacterId ? getCharacterById(game.scriptId, target.realCharacterId) : undefined
+        if (role?.category === 'townsfolk') revivePlayer(target.id)
+      }
+    }
     if (bmrCharacter.id === 'gambler' && bmrGuessCorrect === 'false') killPlayer(actingPlayerId)
     setBmrRecorded(true)
   }
@@ -259,6 +334,27 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
       queueDeathTriggeredReveal([impTargetId])
     }
     setBmrRecorded(true)
+  }
+
+  function resolvePendingSpecialKill(kind: 'gossip' | 'moonchild', targetId: string | null | undefined = specialKillTargetId) {
+    if (!targetId) return
+    if (!game) return
+    const target = game.players.find((player) => player.id === targetId)
+    if (!target) return
+    if (kind === 'gossip') {
+      resolveNightDeaths([target.id], 'gossip')
+      setGossipKillDue(false)
+      setNightOutcome(`La mort provoquée par la Pipelette est enregistrée pour ${target.name}.`)
+    } else {
+      if (game.moonchildTargetWasGood) {
+        resolveNightDeaths([target.id], 'moonchild')
+        setNightOutcome(`${target.name} était gentil(le) au choix du Moonchild : sa mort est enregistrée.`)
+      } else {
+        setNightOutcome(`${target.name} n’est pas gentil(le) : le Moonchild ne provoque aucune mort.`)
+      }
+      setMoonchildTarget(null)
+    }
+    setSpecialKillTargetId('')
   }
 
   const demonPlayerName = step?.demonPlayerId ? game.players.find((p) => p.id === step.demonPlayerId)?.name : undefined
@@ -496,7 +592,11 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                   <p className="text-sm">
                     {bmrCharacter.id === 'courtier'
                       ? 'Choisissez le personnage à rendre ivre.'
-                      : `Sélectionnez ${bmrCharacter.targetCount === 1 ? 'un joueur' : `${bmrCharacter.targetCount} joueurs`}.`}
+                      : bmrCharacter.id === 'po'
+                        ? isPoForced
+                          ? 'Po n\'a tué personne la nuit dernière : il doit tuer 3 joueurs cette nuit.'
+                          : 'Sélectionnez un joueur à tuer, ou aucun.'
+                        : `Sélectionnez ${bmrCharacter.targetCount === 1 ? 'un joueur' : `${bmrCharacter.targetCount} joueurs`}.`}
                   </p>
                 </div>
                 {bmrCharacter.id === 'courtier' ? (
@@ -521,6 +621,17 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                     )
                   })}
                 </div>}
+                {bmrCharacter.id === 'shabaloth' && (game.shabalothVictimIds?.length ?? 0) > 0 && (
+                  <div>
+                    <p className="text-xs text-ink-2 mb-1">Régurgitation facultative — une victime de la nuit précédente revient en jeu.</p>
+                    <PlayerChoiceGrid
+                      players={game.players.filter((player) => game.shabalothVictimIds?.includes(player.id))}
+                      selectedIds={bmrReviveTargetId ? [bmrReviveTargetId] : []}
+                      disabled={bmrRecorded}
+                      onSelect={setBmrReviveTargetId}
+                    />
+                  </div>
+                )}
                 {bmrCharacter.id === 'gambler' && bmrTargetIds.length === 1 && (
                   <div className="grid grid-cols-2 gap-2">
                     <select value={bmrCharacterChoice} onChange={(e) => setBmrCharacterChoice(e.target.value)} disabled={bmrRecorded} className="bg-surface-1 border border-border rounded px-2 py-2">
@@ -549,11 +660,39 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                     </select>
                   </div>
                 )}
-                <Button variant="secondary" disabled={bmrRecorded || (bmrCharacter.id === 'courtier' ? !bmrCharacterChoice : bmrTargetIds.length !== bmrCharacter.targetCount) || ((bmrCharacter.id === 'sailor' || bmrCharacter.id === 'innkeeper') && !bmrDrunkPlayerId) || (bmrCharacter.id === 'gambler' && (!bmrCharacterChoice || !bmrGuessCorrect))} onClick={recordBmrAction}>
+                <Button variant="secondary" disabled={bmrRecorded || hasUsedBmrPower || (bmrCharacter.id === 'courtier' ? !bmrCharacterChoice : !bmrTargetSelectionValid()) || ((bmrCharacter.id === 'sailor' || bmrCharacter.id === 'innkeeper') && !bmrDrunkPlayerId) || (bmrCharacter.id === 'gambler' && (!bmrCharacterChoice || !bmrGuessCorrect))} onClick={recordBmrAction}>
                   {bmrRecorded ? 'Décision enregistrée' : 'Enregistrer dans le grimoire'}
                 </Button>
                 {bmrRecorded && <p className="text-xs text-success">Rappels, notes et éventuelles morts ont été reportés dans le grimoire.</p>}
+                {hasUsedBmrPower && <p className="text-xs text-warn">Ce pouvoir unique a déjà été utilisé pendant cette partie.</p>}
+                {bmrInfoResult && <p className="bg-good/10 border border-good/35 rounded-lg px-3 py-2 text-sm">{bmrInfoResult}</p>}
               </div>
+            )}
+
+            {game.scriptId === 'bad-moon-rising' && isExorcisedDemon && (
+              <div className="bg-warn/10 border border-warn/40 rounded-lg px-4 py-3 text-sm">
+                Le Démon a été ciblé par l’Exorciste : il ne peut pas utiliser son pouvoir cette nuit. Informez-le de l’identité de l’Exorciste.
+              </div>
+            )}
+            {game.scriptId === 'bad-moon-rising' && bmrCharacter?.id === 'godfather' && !game.godfatherKillDue && (
+              <div className="bg-surface-2 border border-border rounded-lg px-4 py-3 text-sm">Le Parrain ne tue pas cette nuit : aucun Paria n’est mort pendant la journée précédente.</div>
+            )}
+
+            {game.scriptId === 'bad-moon-rising' && game.gossipKillDue && (
+              <div className="bg-warn/10 border border-warn/40 rounded-lg p-4 flex flex-col gap-3">
+                <div><p className="text-xs uppercase tracking-wide text-warn">Pipelette — décision du Conteur</p><p className="text-sm">Sa déclaration était vraie : choisissez une personne qui meurt cette nuit.</p></div>
+                <PlayerChoiceGrid players={game.players.filter((player) => player.alive)} selectedIds={specialKillTargetId ? [specialKillTargetId] : []} onSelect={setSpecialKillTargetId} />
+                <Button variant="secondary" disabled={!specialKillTargetId} onClick={() => resolvePendingSpecialKill('gossip')}>Enregistrer la mort</Button>
+              </div>
+            )}
+            {game.scriptId === 'bad-moon-rising' && game.moonchildTargetId && (
+              <div className="bg-warn/10 border border-warn/40 rounded-lg p-4 flex flex-col gap-3">
+                <div><p className="text-xs uppercase tracking-wide text-warn">Moonchild — résolution</p><p className="text-sm">{game.players.find((player) => player.id === game.moonchildTargetId)?.name ?? 'La cible'} a été désigné(e) publiquement. Confirmez sa résolution cette nuit.</p></div>
+                <Button variant="secondary" onClick={() => resolvePendingSpecialKill('moonchild', game.moonchildTargetId)}>Résoudre le Moonchild</Button>
+              </div>
+            )}
+            {game.scriptId === 'bad-moon-rising' && bmrCharacter?.id === 'lunatic' && (
+              <div className="bg-warn/10 border border-warn/40 rounded-lg px-4 py-3 text-sm">Lunatique : montrez-lui des Sbires et trois bluffs plausibles comme s’il était le Démon. Réveillez ensuite le vrai Démon pour lui montrer qui est le Lunatique et les cibles choisies.</div>
             )}
 
             {nightOutcome && (
