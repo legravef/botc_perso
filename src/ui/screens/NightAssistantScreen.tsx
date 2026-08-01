@@ -66,6 +66,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [index, setIndex] = useState(0)
   const [targetId, setTargetId] = useState('')
   const [showReveal, setShowReveal] = useState(false)
+  const [showDemonRole, setShowDemonRole] = useState(false)
   const [showGoonAlignment, setShowGoonAlignment] = useState(false)
   const [bmrTargetIds, setBmrTargetIds] = useState<string[]>([])
   const [bmrDrunkPlayerId, setBmrDrunkPlayerId] = useState('')
@@ -87,6 +88,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   useEffect(() => {
     setTargetId('')
     setShowReveal(false)
+    setShowDemonRole(false)
     setShowGoonAlignment(false)
     setBmrTargetIds([])
     setBmrDrunkPlayerId('')
@@ -368,10 +370,14 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const revealPlayerA = reveal?.kind === 'pair' ? game.players.find((p) => p.id === reveal.playerAId) : undefined
   const revealPlayerB = reveal?.kind === 'pair' ? game.players.find((p) => p.id === reveal.playerBId) : undefined
   const revealCharacter = reveal?.kind === 'pair' ? getCharacterById(game.scriptId, reveal.characterId) : undefined
+  const revealSinglePlayer = reveal?.kind === 'player-role' ? game.players.find((player) => player.id === reveal.playerId) : undefined
+  const revealSingleCharacter = reveal?.kind === 'player-role' ? getCharacterById(game.scriptId, reveal.characterId) : undefined
   const roleRevealTarget = roleRevealTargetId ? game.players.find((player) => player.id === roleRevealTargetId) : undefined
   const roleRevealCharacter = roleRevealTarget?.realCharacterId
     ? getCharacterById(game.scriptId, roleRevealTarget.realCharacterId)
     : undefined
+  const demonInfoPlayer = step?.demonPlayerId ? game.players.find((player) => player.id === step.demonPlayerId) : undefined
+  const demonInfoCharacter = demonInfoPlayer?.realCharacterId ? getCharacterById(game.scriptId, demonInfoPlayer.realCharacterId) : undefined
   const goonWasTargeted = bmrCharacter?.id === 'goon' && !!actingPlayer?.reminders.some((reminder) => reminder.sourceCharacterId === 'goon-flip')
 
   // Les étapes "Information des Sbires"/"Information du Démon" n'ont pas de characterId unique
@@ -481,6 +487,13 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
               <div className="bg-surface-2 border border-accent/40 rounded-lg p-3">
                 <p className="text-xs text-ink-2 mb-1">Information privée à donner</p>
                 <p className="text-base text-ink-0 font-medium">{step.resolvedInfo}</p>
+              </div>
+            )}
+
+            {step.kind === 'demon-info' && demonInfoPlayer && demonInfoCharacter && (
+              <div className="bg-evil-bg border border-evil/45 rounded-xl p-4 flex items-center justify-between gap-3">
+                <div><p className="text-xs uppercase tracking-wide text-evil mb-1">Rappel pour le Démon</p><p className="text-sm">Avant de lui montrer ses Sbires et ses bluffs, confirmez-lui clairement son personnage.</p></div>
+                <Button variant="secondary" onClick={() => setShowDemonRole(true)}>Montrer « {demonInfoCharacter.nameFr} »</Button>
               </div>
             )}
 
@@ -806,10 +819,21 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
               <p className="text-2xl font-semibold">{revealCharacter?.nameFr ?? '?'}</p>
             </div>
           </>
-        ) : (
+        ) : reveal.kind === 'number' ? (
           <>
             <p className="text-ink-2 text-sm">Nombre à montrer silencieusement</p>
             <p className="text-[9rem] leading-none font-bold text-accent">{reveal.value}</p>
+          </>
+        ) : reveal.kind === 'player-role' ? (
+          <>
+            <p className="text-ink-2 text-sm">Ce joueur et son personnage</p>
+            <div className="bg-surface-1 border border-border rounded-2xl px-10 py-6"><p className="text-3xl font-semibold">{revealSinglePlayer?.name ?? '?'}</p></div>
+            <div className="bg-accent/10 border border-accent/50 rounded-2xl px-10 py-7 flex flex-col items-center gap-3"><RoleIcon characterId={revealSingleCharacter?.id} nameFr={revealSingleCharacter?.nameFr} size={78} /><p className="text-3xl font-semibold">{revealSingleCharacter?.nameFr ?? '?'}</p></div>
+          </>
+        ) : (
+          <>
+            <p className="text-ink-2 text-sm">{reveal.title}</p>
+            {reveal.characterIds.length > 0 ? <div className="flex flex-wrap justify-center gap-4">{reveal.characterIds.map((characterId) => { const character = getCharacterById(game.scriptId, characterId); return <div key={characterId} className="bg-accent/10 border border-accent/50 rounded-2xl px-7 py-5 flex flex-col items-center gap-2"><RoleIcon characterId={characterId} nameFr={character?.nameFr} size={64} /><p className="text-xl font-semibold">{character?.nameFr ?? characterId}</p></div> })}</div> : <p className="text-4xl font-semibold">Aucun</p>}
           </>
         )}
         <p className="text-ink-2 text-xs mt-4">Touchez l'écran, espace ou échap pour masquer</p>
@@ -822,6 +846,16 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
           <p className={`mt-5 text-6xl font-bold ${actingPlayer.alignment === 'good' ? 'text-good' : 'text-evil'}`}>{actingPlayer.alignment === 'good' ? 'GENTIL' : 'MÉCHANT'}</p>
           <Button variant="ghost" className="mt-10" onClick={() => setShowGoonAlignment(false)}>Masquer</Button>
         </div>
+      </div>
+    )}
+    {showDemonRole && demonInfoPlayer && demonInfoCharacter && (
+      <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-8 p-6 text-center" onClick={() => setShowDemonRole(false)} role="dialog" aria-modal="true" aria-label="Personnage du Démon">
+        <p className="text-sm uppercase tracking-[0.22em] text-ink-2">Votre personnage est</p>
+        <div className="bg-evil-bg border border-evil rounded-3xl px-12 py-10 flex flex-col items-center gap-4">
+          <RoleIcon characterId={demonInfoCharacter.id} nameFr={demonInfoCharacter.nameFr} size={96} />
+          <p className="text-4xl font-bold text-evil">{demonInfoCharacter.nameFr}</p>
+        </div>
+        <p className="text-xs text-ink-2">Touchez l’écran pour masquer</p>
       </div>
     )}
     </>

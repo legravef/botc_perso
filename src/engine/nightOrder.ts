@@ -25,7 +25,11 @@ export interface NightStep {
   /** Contenu à afficher plein écran, tourné vers le joueur — remplace une feuille de référence
    * papier. `pair` : deux joueurs (sans distinction) + le rôle concerné (Lavandière/Libraire/
    * Enquêteur). `number` : un nombre à montrer silencieusement (Chef/Empathique). */
-  displayReveal?: { kind: 'pair'; playerAId: string; playerBId: string; characterId: string } | { kind: 'number'; value: number }
+  displayReveal?:
+    | { kind: 'pair'; playerAId: string; playerBId: string; characterId: string }
+    | { kind: 'number'; value: number }
+    | { kind: 'player-role'; playerId: string; characterId: string }
+    | { kind: 'characters'; characterIds: string[]; title: string }
 }
 
 interface OrderedStep extends NightStep {
@@ -115,6 +119,7 @@ function buildCharacterStep(game: Game, character: Character, player: Player): N
           ...base,
           instruction: `Montrez-lui le rôle réel du joueur exécuté hier : ${executed.name}.`,
           resolvedInfo: `Montrez : ${executedCharacter?.nameFr ?? '?'}.`,
+          displayReveal: executedCharacter ? { kind: 'characters', characterIds: [executedCharacter.id], title: 'Le personnage du joueur exécuté' } : undefined,
         }
       }
       return {
@@ -146,6 +151,7 @@ function buildCharacterStep(game: Game, character: Character, player: Player): N
         ...base,
         instruction: `Montrez-lui ${revealPlayer.name} et son rôle réel.`,
         resolvedInfo: `Joueur montré : ${revealPlayer.name} (${revealCharacter?.nameFr ?? '?'}). Si le Démon le tue plus tard, la Grand-mère mourra aussi — l'appli le fera automatiquement.`,
+        displayReveal: revealCharacter ? { kind: 'player-role', playerId: revealPlayer.id, characterId: revealCharacter.id } : undefined,
       }
     }
     case 'godfather': {
@@ -160,6 +166,7 @@ function buildCharacterStep(game: Game, character: Character, player: Player): N
         ...base,
         instruction: 'Indiquez-lui quels Parias sont en jeu (sans révéler qui les possède).',
         resolvedInfo: names.length > 0 ? `Parias en jeu : ${names.join(', ')}.` : 'Aucun Paria en jeu.',
+        displayReveal: { kind: 'characters', characterIds: outsiders.flatMap((player) => player.realCharacterId ? [player.realCharacterId] : []), title: 'Parias en jeu' },
       }
     }
     default:
