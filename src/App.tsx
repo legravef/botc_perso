@@ -28,7 +28,7 @@ function App() {
   }
 
   if (showReference) {
-    return <CharacterReferenceScreen onBack={() => setShowReference(false)} />
+    return <CharacterReferenceScreen onBack={() => setShowReference(false)} scriptId={game?.scriptId} />
   }
 
   if (!game) {
