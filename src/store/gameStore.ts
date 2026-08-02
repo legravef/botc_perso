@@ -65,9 +65,11 @@ function resolvePlayerDeathDetailed(
     )
     const protectedByMonk = source?.category === 'demon' && player.reminders.some((r) => r.sourceCharacterId === 'monk')
     const sailorImmune = player.realCharacterId === 'sailor' && !isPlayerDrunk(player)
+    const soldierImmune = player.realCharacterId === 'soldier' && source?.category === 'demon' && !isPlayerDrunk(player)
     if (protectedByInnkeeper) return { player, outcome: 'prevented', reason: 'protégé(e) par l’Aubergiste' }
     if (protectedByMonk) return { player, outcome: 'prevented', reason: 'protégé(e) par le Moine' }
     if (sailorImmune) return { player, outcome: 'prevented', reason: 'Marin sobre : il est immortel cette nuit' }
+    if (soldierImmune) return { player, outcome: 'prevented', reason: 'Soldat : immunisé contre le Démon' }
   }
 
   if (cause === 'execution') {
@@ -114,6 +116,46 @@ function resolvePlayerDeathDetailed(
 
 function resolvePlayerDeath(player: Player, allPlayers: Player[], source: Character | undefined, cause: DeathCause, ignoreProtection: boolean): Player {
   return resolvePlayerDeathDetailed(player, allPlayers, source, cause, ignoreProtection).player
+}
+
+/**
+ * Confidente (Trouble Brewing) : si le Démon vient de mourir (quelle qu'en soit la cause) et
+ * qu'il reste au moins 5 joueurs vivants, la Confidente vivante devient immédiatement le nouveau
+ * Démon — jamais annoncé publiquement. `beforePlayers`/`afterPlayers` doivent correspondre au
+ * même instant (juste avant/après la résolution de la mort qui vient d'être appliquée).
+ */
+function applyScarletWomanSuccession(scriptId: Game['scriptId'], beforePlayers: Player[], afterPlayers: Player[]): Player[] {
+  const diedDemon = beforePlayers.find((before) => {
+    if (!before.alive) return false
+    const after = afterPlayers.find((p) => p.id === before.id)
+    if (!after || after.alive) return false
+    const character = before.realCharacterId ? getCharacterById(scriptId, before.realCharacterId) : undefined
+    return character?.category === 'demon'
+  })
+  if (!diedDemon?.realCharacterId) return afterPlayers
+
+  const livingCount = afterPlayers.filter((p) => p.alive).length
+  const scarletWoman = afterPlayers.find((p) => p.alive && p.realCharacterId === 'scarlet-woman')
+  if (!scarletWoman || livingCount < 5) return afterPlayers
+
+  return afterPlayers.map((p) =>
+    p.id === scarletWoman.id
+      ? {
+          ...p,
+          realCharacterId: diedDemon.realCharacterId,
+          alignment: 'evil',
+          notes: [
+            ...p.notes,
+            {
+              id: nanoid(),
+              text: `Confidente : devient le nouveau Démon (${diedDemon.realCharacterId}) après la mort de ${diedDemon.name}.`,
+              category: 'information' as const,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }
+      : p,
+  )
 }
 import { createEmptyPreparation, createPlayer } from '@/lib/factories'
 import {
@@ -480,6 +522,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           const godfatherKillDue = executedDied && executedCharacter?.category === 'outsider'
             ? true
             : g.godfatherKillDue
+          players = applyScarletWomanSuccession(g.scriptId, g.players, players)
           return {
             ...g,
             lastExecutedPlayerId: executedPlayerId,
@@ -529,6 +572,17 @@ export const useGameStore = create<GameStore>((set, get) => {
                   outcome: resolution.outcome, reason: `meurt car le Démon a tué son petit-fils (${resolution.reason})`,
                 })
               }
+            }
+          }
+          const beforeSuccession = players
+          players = applyScarletWomanSuccession(g.scriptId, g.players, players)
+          if (players !== beforeSuccession) {
+            const newDemon = players.find((p) => p.realCharacterId && p.notes.some((note) => note.text.startsWith('Confidente : devient')))
+            if (newDemon) {
+              nightLog.push({
+                sourceCharacterId: 'scarlet-woman', sourceName: 'Confidente', targetName: newDemon.name,
+                outcome: 'survived', reason: 'devient le nouveau Démon suite à la mort de l’ancien',
+              })
             }
           }
           return { ...g, players, nightLog }

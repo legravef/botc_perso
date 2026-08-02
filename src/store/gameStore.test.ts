@@ -590,3 +590,47 @@ describe('useGameStore/winCondition — Cerveau (Mastermind)', () => {
     expect(suggestion?.winner).toBe('good')
   })
 })
+
+describe('useGameStore — Trouble Brewing : Soldat et Confidente', () => {
+  it('le Soldat sobre est immunisé contre le Démon, mais reste vulnérable à l\'exécution', () => {
+    useGameStore.getState().createGame('trouble-brewing')
+    const [target] = sevenPlayers() as [Player]
+    useGameStore.getState().setPlayers([{ ...target, realCharacterId: 'soldier' }])
+
+    useGameStore.getState().resolveNightDeaths([target.id], 'imp')
+    expect(useGameStore.getState().game?.players[0]?.alive).toBe(true)
+
+    useGameStore.getState().resolveExecution(target.id)
+    expect(useGameStore.getState().game?.players[0]?.alive).toBe(false)
+  })
+
+  it('la Confidente devient le nouveau Démon si celui-ci meurt avec 5 joueurs ou plus vivants', () => {
+    useGameStore.getState().createGame('trouble-brewing')
+    // 6 joueurs, le Démon meurt -> il en reste 5 vivants : le seuil "5 joueurs ou plus" est atteint.
+    const players = Array.from({ length: 6 }, (_, i) => createPlayer(`J${i}`, i))
+    useGameStore.getState().setPlayers(players)
+    useGameStore.getState().setPlayerCharacter(players[0]!.id, 'imp')
+    useGameStore.getState().setPlayerCharacter(players[1]!.id, 'scarlet-woman')
+
+    useGameStore.getState().resolveExecution(players[0]!.id)
+
+    const game = useGameStore.getState().game!
+    expect(game.players.find((p) => p.id === players[0]!.id)?.alive).toBe(false)
+    const scarletWoman = game.players.find((p) => p.id === players[1]!.id)
+    expect(scarletWoman?.realCharacterId).toBe('imp')
+    expect(scarletWoman?.alignment).toBe('evil')
+  })
+
+  it('la Confidente ne devient pas Démon si moins de 5 joueurs restent vivants', () => {
+    useGameStore.getState().createGame('trouble-brewing')
+    const players = Array.from({ length: 4 }, (_, i) => createPlayer(`J${i}`, i))
+    useGameStore.getState().setPlayers(players)
+    useGameStore.getState().setPlayerCharacter(players[0]!.id, 'imp')
+    useGameStore.getState().setPlayerCharacter(players[1]!.id, 'scarlet-woman')
+
+    useGameStore.getState().resolveExecution(players[0]!.id)
+
+    const scarletWoman = useGameStore.getState().game?.players.find((p) => p.id === players[1]!.id)
+    expect(scarletWoman?.realCharacterId).toBe('scarlet-woman')
+  })
+})

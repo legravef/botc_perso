@@ -67,6 +67,24 @@ describe('suggestWinCondition', () => {
     expect(result?.reason).toContain('Saint')
   })
 
+  it('le Maire fait gagner le Bien à 3 joueurs vivants sans exécution', () => {
+    const players = makePlayers(3).map((p, i) => {
+      if (i === 0) return { ...p, realCharacterId: 'imp', alignment: 'evil' as const }
+      if (i === 1) return { ...p, realCharacterId: 'mayor' }
+      return p
+    })
+    const game = makeGame(players)
+    const result = suggestWinCondition(game, null)
+    expect(result?.winner).toBe('good')
+    expect(result?.reason).toContain('Maire')
+  })
+
+  it('sans Maire vivant, 3 joueurs vivants sans exécution ne déclenchent rien', () => {
+    const players = makePlayers(3).map((p, i) => (i === 0 ? { ...p, realCharacterId: 'imp', alignment: 'evil' as const } : p))
+    const game = makeGame(players)
+    expect(suggestWinCondition(game, null)).toBeNull()
+  })
+
   it("la mort du Saint hors exécution (justExecutedPlayerId absent) ne déclenche pas sa condition spéciale", () => {
     const players = makePlayers(7).map((p, i) => {
       if (i === 6) return { ...p, realCharacterId: 'imp', alignment: 'evil' as const }

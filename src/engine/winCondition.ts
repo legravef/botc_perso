@@ -7,9 +7,9 @@ const EXECUTION_TRIGGERS_EVIL_WIN = new Set(['saint'])
 
 /**
  * Suggère une condition de victoire à partir de l'état courant — ne force jamais la fin de
- * partie, le Conteur reste seul juge final (cas particuliers non modélisés ici : Maire à 3
- * joueurs sans exécution, ambiguïtés d'alignement du Reclus/Espion, house rules...). Retourne
- * null si aucune condition évidente n'est remplie et que la partie continue normalement.
+ * partie, le Conteur reste seul juge final (cas particuliers non modélisés ici : ambiguïtés
+ * d'alignement du Reclus/Espion, house rules...). Retourne null si aucune condition évidente
+ * n'est remplie et que la partie continue normalement.
  *
  * `justExecutedPlayerId` doit être fourni juste après une exécution pour détecter le
  * déclencheur du Saint — un joueur qui meurt la nuit avec le rôle de Saint ne déclenche PAS
@@ -63,6 +63,14 @@ export function suggestWinCondition(game: Game, justExecutedPlayerId?: string | 
     return {
       winner: 'good',
       reason: 'Le Démon est mort : le Bien gagne.',
+      confirmedAt: new Date().toISOString(),
+    }
+  }
+
+  if (living.length === 3 && !justExecutedPlayerId && living.some((p) => p.realCharacterId === 'mayor')) {
+    return {
+      winner: 'good',
+      reason: 'Maire : il ne reste que 3 joueurs vivants et personne n’a été exécuté aujourd’hui : le Bien gagne.',
       confirmedAt: new Date().toISOString(),
     }
   }
