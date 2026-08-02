@@ -11,33 +11,6 @@ import { PlayerChoiceGrid } from '../components/PlayerChoiceGrid'
 
 const NO_EXECUTION = ''
 
-type Opening = { title: string; text: string; cue: string }
-
-const OPENINGS: Record<'trouble-brewing' | 'bad-moon-rising', Opening[]> = {
-  'trouble-brewing': [
-    { title: 'Ouverture — Trouble Brewing', text: 'À Ravenswood Bluff, l’horloge sonne mais personne ne se souvient de l’avoir remontée. Cette nuit, le mal a trouvé une porte entrouverte. Regardez vos voisins : l’un d’eux a peut-être déjà appris à mentir.', cue: 'Marquez une courte pause après « porte entrouverte ».' },
-    { title: 'Ouverture — Trouble Brewing', text: 'Le brouillard s’accroche aux pavés et les corbeaux se taisent trop vite. Au matin, chacun aura une histoire à raconter. La difficulté sera de savoir lesquelles méritent d’être crues.', cue: 'Lisez la dernière phrase plus lentement, puis invitez les regards à se croiser.' },
-    { title: 'Ouverture — Trouble Brewing', text: 'La cloche du village a sonné treize coups. Personne ne l’a entendue, sauf vous tous. Quelque chose rôde dans les ruelles de Ravenswood Bluff, et il compte sur votre certitude pour vous égarer.', cue: 'Donnez un ton conspirateur à « sauf vous tous ».' },
-    { title: 'Ouverture — Trouble Brewing', text: 'Cette nuit, une fenêtre est restée allumée au sommet de la tour. À son pied, les habitants se réveillent avec une question simple : qui protège le village… et qui le regarde brûler ?', cue: 'Laissez deux secondes de silence avant la question finale.' },
-    { title: 'Ouverture — Trouble Brewing', text: 'Les tavernes ouvrent leurs volets, les rumeurs aussi. Un sourire trop assuré, une information trop parfaite ou un silence trop long peuvent être votre meilleur indice. Ou votre pire erreur.', cue: 'Vous pouvez désigner théâtralement la table sur « votre pire erreur ».' },
-    { title: 'Ouverture — Trouble Brewing', text: 'Ravenswood Bluff s’éveille, mais la nuit n’est jamais tout à fait partie. Le Bien cherche la vérité ; le Mal cherche une voix convaincante. Aujourd’hui, les deux parleront avec le même visage.', cue: 'Adoptez un ton calme : l’ouverture doit lancer la discussion, pas expliquer les règles.' },
-  ],
-  'bad-moon-rising': [
-    { title: 'Ouverture — Bad Moon Rising', text: 'La lune pâle ne quitte plus Ravenswood Bluff. Ici, les morts ont parfois de mauvaises habitudes : ils reviennent, ils se taisent, ils observent. Ne comptez pas trop vite les chaises vides.', cue: 'Insistez doucement sur « ils reviennent ».' },
-    { title: 'Ouverture — Bad Moon Rising', text: 'Le gel dessine des griffes sur les fenêtres et les cloches ont cessé de sonner. Cette nuit, la mort a parcouru le village ; au matin, elle laissera des indices, mais rarement des certitudes.', cue: 'Faites une pause après « le village ».' },
-    { title: 'Ouverture — Bad Moon Rising', text: 'Dans les ruelles, on raconte qu’un défunt a frappé à sa propre porte. À Ravenswood Bluff, survivre ne prouve rien, mourir ne termine rien, et la lune ne donne jamais d’explication.', cue: 'Lisez les trois dernières propositions avec un rythme régulier.' },
-    { title: 'Ouverture — Bad Moon Rising', text: 'Les lanternes vacillent sous un vent sans chaleur. Le village devra choisir qui croire, alors que protections, poisons et miracles se disputent déjà la nuit.', cue: 'Un ton grave convient mieux que l’humour pour cette variante.' },
-    { title: 'Ouverture — Bad Moon Rising', text: 'La nuit a laissé des traces dans la neige, mais elles s’arrêtent toutes au même endroit : la place du village. Certains secrets meurent avec leurs porteurs. D’autres refusent obstinément de le faire.', cue: 'Marquez un arrêt net entre les deux dernières phrases.' },
-    { title: 'Ouverture — Bad Moon Rising', text: 'Une mauvaise lune se lève sur Ravenswood Bluff. Gardez les yeux ouverts, même devant les tombeaux : cette partie ne récompensera pas ceux qui prennent les apparences pour des preuves.', cue: 'Terminez avec un léger sourire, puis laissez les joueurs commencer à parler.' },
-  ],
-}
-
-function openingForGame(scriptId: 'trouble-brewing' | 'bad-moon-rising', gameId: string): Opening {
-  const hash = [...gameId].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 0)
-  const openings = OPENINGS[scriptId]
-  return openings[hash % openings.length]!
-}
-
 export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const game = useGameStore((s) => s.game)
   const startNextNight = useGameStore((s) => s.startNextNight)
@@ -62,14 +35,24 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
 
   const deadPlayers = game.players.filter((p) => !p.alive)
   const livingPlayers = game.players.filter((p) => p.alive)
-  const opening = openingForGame(game.scriptId, game.id)
+  const minstrelActive = game.players.some((player) => player.reminders.some((reminder) => reminder.sourceCharacterId === 'minstrel'))
   const executedCandidate = executedPlayerId ? game.players.find((p) => p.id === executedPlayerId) : undefined
   const pacifistAlive = game.players.some((p) => p.alive && p.realCharacterId === 'pacifist')
   const showPacifistChoice = game.scriptId === 'bad-moon-rising' && pacifistAlive && executedCandidate?.alignment === 'good'
   const gossipPlayer = game.scriptId === 'bad-moon-rising'
-    ? game.players.find((player) => player.alive && player.realCharacterId === 'gossip' && !player.reminders.some((reminder) => ['courtier', 'sailor', 'innkeeper', 'goon', 'minstrel', 'pukka'].includes(reminder.sourceCharacterId)))
+    ? game.players.find((player) => player.alive && player.realCharacterId === 'gossip' && !player.reminders.some((reminder) =>
+      (['courtier', 'sailor', 'innkeeper', 'goon', 'minstrel'].includes(reminder.sourceCharacterId) && reminder.label.startsWith('Ivre'))
+      || reminder.label.startsWith('Empoisonné'),
+    ))
     : undefined
-  const showMoonchildChoice = game.scriptId === 'bad-moon-rising' && executedCandidate?.realCharacterId === 'moonchild'
+  const moonchildDeadPlayer = deadPlayers.find((player) => player.realCharacterId === 'moonchild')
+  // Le Moonchild peut apprendre sa mort par exécution (ci-dessous) OU par une mort de nuit
+  // (démon, Pipelette...) — dans ce second cas, on le détecte via le journal de la nuit passée,
+  // qui n'est effacé qu'au démarrage de la nuit suivante : ce déclencheur ne reste donc actif
+  // que le jour qui suit immédiatement sa mort.
+  const moonchildNightDeath = game.scriptId === 'bad-moon-rising' && !!moonchildDeadPlayer
+    && (game.nightLog ?? []).some((entry) => entry.outcome === 'dead' && entry.targetName === moonchildDeadPlayer.name)
+  const showMoonchildChoice = game.scriptId === 'bad-moon-rising' && (executedCandidate?.realCharacterId === 'moonchild' || moonchildNightDeath)
 
   function handleConfirm() {
     if (!executedPlayerId) {
@@ -87,8 +70,12 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
     const updatedGame = useGameStore.getState().game
     if (!updatedGame) return
     if (gossipWasTrue && gossipPlayer) setGossipKillDue(true)
-    if (showMoonchildChoice && moonchildTargetId && updatedGame.players.find((player) => player.id === executedPlayerId)?.alive === false) {
-      setMoonchildTarget(moonchildTargetId, updatedGame.players.find((player) => player.id === moonchildTargetId)?.alignment === 'good')
+    if (showMoonchildChoice && moonchildTargetId) {
+      const executedMoonchildDied = executedCandidate?.realCharacterId === 'moonchild'
+        && updatedGame.players.find((player) => player.id === executedPlayerId)?.alive === false
+      if (executedMoonchildDied || moonchildNightDeath) {
+        setMoonchildTarget(moonchildTargetId, updatedGame.players.find((player) => player.id === moonchildTargetId)?.alignment === 'good')
+      }
     }
     const suggestion = suggestWinCondition(updatedGame, executedPlayerId || null)
     if (suggestion) {
@@ -156,14 +143,13 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
     >
       <div className="max-w-xl mx-auto flex flex-col gap-6">
         <SkyBanner variant="sunrise" className="h-56" />
-        {game.dayNumber === 1 && (
-          <section className="bg-accent/10 border border-accent/35 rounded-2xl p-5">
-            <p className="text-xs uppercase tracking-[0.16em] text-accent mb-2">{opening.title}</p>
-            <p className="text-sm leading-relaxed text-ink-1">{opening.text}</p>
-            <p className="text-xs text-ink-2 mt-3 border-t border-accent/20 pt-3">Conseil MJ : {opening.cue}</p>
+        <DayBriefing history={history} game={game} />
+        {minstrelActive && (
+          <section className="bg-warn/10 border border-warn/40 rounded-xl p-4">
+            <p className="text-xs uppercase tracking-wide text-warn mb-1">Ménestrel actif</p>
+            <p className="text-sm">Un Sbire a été exécuté : tous les autres joueurs restent ivres pendant ce jour.</p>
           </section>
         )}
-        <DayBriefing history={history} />
         <p className="text-lg">Le jour se lève.</p>
 
         <section>

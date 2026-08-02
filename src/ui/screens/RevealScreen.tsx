@@ -38,8 +38,15 @@ export function RevealScreen() {
 
   const players = [...game.players].sort((a, b) => a.seat - b.seat)
   const selectedPlayer = selectedPlayerId ? players.find((p) => p.id === selectedPlayerId) : undefined
+  const fallbackLunaticDemonId = players.find((player) => {
+    const character = player.realCharacterId ? getCharacterById(game.scriptId, player.realCharacterId) : undefined
+    return character?.category === 'demon'
+  })?.realCharacterId
   const displayedCharacterId = selectedPlayer
-    ? (selectedPlayer.perceivedCharacterId ?? selectedPlayer.realCharacterId)
+    ? (selectedPlayer.perceivedCharacterId
+      ?? (selectedPlayer.realCharacterId === 'lunatic'
+        ? (game.preparation.lunaticBelievedDemonId ?? fallbackLunaticDemonId)
+        : selectedPlayer.realCharacterId))
     : null
   const displayedCharacter = displayedCharacterId ? getCharacterById(game.scriptId, displayedCharacterId) : null
 

@@ -14,11 +14,13 @@ import { GameEndScreen } from './ui/screens/GameEndScreen'
 import { GrimoireScreen } from './ui/screens/GrimoireScreen'
 import { CharacterReferenceScreen } from './ui/screens/CharacterReferenceScreen'
 import { PublicRoleView } from './ui/screens/PublicRoleView'
+import { TrainingScreen } from './ui/screens/TrainingScreen'
 
 function App() {
   const game = useGameStore((s) => s.game)
   const closeGame = useGameStore((s) => s.closeGame)
   const [showReference, setShowReference] = useState(false)
+  const [showTraining, setShowTraining] = useState(false)
   const [viewGrimoire, setViewGrimoire] = useState(false)
 
   // Route autonome ouverte en scannant un QR code de révélation : ne dépend
@@ -30,9 +32,12 @@ function App() {
   if (showReference) {
     return <CharacterReferenceScreen onBack={() => setShowReference(false)} scriptId={game?.scriptId} />
   }
+  if (showTraining) {
+    return <TrainingScreen onBack={() => setShowTraining(false)} />
+  }
 
   if (!game) {
-    return <HomeScreen onOpenCharacterReference={() => setShowReference(true)} />
+    return <HomeScreen onOpenCharacterReference={() => setShowReference(true)} onOpenTraining={() => setShowTraining(true)} />
   }
 
   // Le grimoire s'affiche en superposition plutôt qu'en remplacement de l'écran courant : sinon

@@ -22,6 +22,8 @@ export interface NightStep {
   redHerringPlayerId?: string
   /** Étape "Information du Démon"/Voyante : identifiant du joueur incarnant le Démon, pour affichage explicite. */
   demonPlayerId?: string
+  /** Démon fictif à présenter au Lunatique à la place de son rôle réel. */
+  perceivedDemonCharacterId?: string
   /** Contenu à afficher plein écran, tourné vers le joueur — remplace une feuille de référence
    * papier. `pair` : deux joueurs (sans distinction) + le rôle concerné (Lavandière/Libraire/
    * Enquêteur). `number` : un nombre à montrer silencieusement (Chef/Empathique). */
@@ -29,6 +31,7 @@ export interface NightStep {
     | { kind: 'pair'; playerAId: string; playerBId: string; characterId: string }
     | { kind: 'number'; value: number }
     | { kind: 'player-role'; playerId: string; characterId: string }
+    | { kind: 'players'; playerIds: string[]; title: string }
     | { kind: 'characters'; characterIds: string[]; title: string }
 }
 
@@ -169,6 +172,23 @@ function buildCharacterStep(game: Game, character: Character, player: Player): N
         displayReveal: { kind: 'characters', characterIds: outsiders.flatMap((player) => player.realCharacterId ? [player.realCharacterId] : []), title: 'Parias en jeu' },
       }
     }
+    case 'lunatic': {
+      const believedDemon = game.preparation.lunaticBelievedDemonId
+        ? getCharacterById(game.scriptId, game.preparation.lunaticBelievedDemonId)
+        : undefined
+      if (believedDemon) {
+        return {
+          ...base,
+          title: believedDemon.nameFr,
+          instruction: `Réveillez-le comme ${believedDemon.nameFr}, puis faites-lui effectuer l’action de ce Démon. Ses choix sont simulés : ils n’ont aucun effet réel.`,
+          perceivedDemonCharacterId: believedDemon.id,
+        }
+      }
+      return {
+        ...base,
+        instruction: 'Préparation du Lunatique incomplète : choisissez le Démon qu’il croit être avant de jouer.',
+      }
+    }
     default:
       return { ...base, instruction: character.shortDescription }
   }
@@ -213,6 +233,7 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
     }
 
     if (demonPlayer) {
+      const lunaticPlayer = game.players.find((player) => player.realCharacterId === 'lunatic')
       const bluffNames = game.preparation.impBluffCharacterIds
         .map((id) => getCharacterById(game.scriptId, id)?.nameFr)
         .filter((n): n is string => Boolean(n))
@@ -224,7 +245,7 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
         playerIds: [demonPlayer.id],
         title: 'Information du Démon',
         instruction: 'Réveillez le Démon. Montrez-lui ses Sbires ET ses 3 bluffs (personnages absents) — ne l\'oubliez pas.',
-        resolvedInfo: `Sbires : ${minionPlayers.map((p) => p.name).join(', ') || 'aucun'}. Bluffs : ${bluffNames || 'non définis'}.`,
+        resolvedInfo: `Sbires : ${minionPlayers.map((p) => p.name).join(', ') || 'aucun'}.${lunaticPlayer ? ` Lunatique : ${lunaticPlayer.name}.` : ''} Bluffs : ${bluffNames || 'non définis'}.`,
         bluffCharacterIds: game.preparation.impBluffCharacterIds,
         demonPlayerId: demonPlayer.id,
         orderValue: -1,
@@ -238,7 +259,89 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
     if (character.id === 'undertaker' && !game.lastExecutedPlayerId) continue
     const player = findAlivePlayer(character.id)
     if (!player) continue
+    if (nightType === 'first' && character.id === 'lunatic') {
+      const believedDemon = game.preparation.lunaticBelievedDemonId
+        ? getCharacterById(game.scriptId, game.preparation.lunaticBelievedDemonId)
+        : undefined
+      const falseMinions = (game.preparation.lunaticMinionPlayerIds ?? [])
+        .map((id) => game.players.find((candidate) => candidate.id === id)?.name)
+        .filter((name): name is string => Boolean(name))
+      const bluffIds = game.preparation.lunaticBluffCharacterIds ?? []
+      const bluffNames = bluffIds
+        .map((id) => getCharacterById(game.scriptId, id)?.nameFr)
+        .filter((name): name is string => Boolean(name))
+      const configured = believedDemon && falseMinions.length > 0 && bluffNames.length === 3
+      ordered.push({
+        id: `lunatic-wake-${player.id}`,
+        kind: 'character',
+        characterId: 'lunatic',
+        playerIds: [player.id],
+        title: 'Réveil du Lunatique',
+        instruction: believedDemon
+          ? `Réveillez ${player.name}. Présentez-le comme ${believedDemon.nameFr}, sans jamais mentionner le Lunatique.`
+          : 'Préparation du Lunatique incomplète : choisissez d’abord le Démon qu’il croit être.',
+        orderValue: order,
+      })
+      ordered.push({
+        id: `lunatic-info-${player.id}`,
+        kind: 'demon-info',
+        characterId: null,
+        playerIds: [player.id],
+        title: 'Information du Démon',
+        instruction: configured
+          ? 'Réveillez le Démon. Montrez-lui ses Sbires ET ses 3 bluffs (personnages absents) — ne l’oubliez pas.'
+          : 'Préparation du Démon incomplète — retournez à la préparation avant de continuer.',
+        resolvedInfo: configured
+          ? `Sbires : ${falseMinions.join(', ')}. Bluffs : ${bluffNames.join(', ')}.`
+          : undefined,
+        bluffCharacterIds: bluffIds,
+        demonPlayerId: player.id,
+        perceivedDemonCharacterId: believedDemon?.id,
+        orderValue: order + 0.01,
+      })
+      continue
+    }
     ordered.push({ ...buildCharacterStep(game, character, player), orderValue: order })
+    if (nightType === 'other' && character.id === 'lunatic') {
+      const demonPlayer = game.players.find((candidate) => {
+        const candidateCharacter = candidate.realCharacterId ? getCharacterById(game.scriptId, candidate.realCharacterId) : undefined
+        return candidate.alive && candidateCharacter?.category === 'demon'
+      })
+      const targetIds = game.lunaticTargetIds ?? []
+      if (demonPlayer && targetIds.length > 0) {
+        const names = targetIds
+          .map((id) => game.players.find((candidate) => candidate.id === id)?.name)
+          .filter((name): name is string => Boolean(name))
+        ordered.push({
+          id: `lunatic-targets-${demonPlayer.id}`,
+          kind: 'character',
+          characterId: demonPlayer.realCharacterId,
+          playerIds: [demonPlayer.id],
+          title: 'Information du Démon',
+          instruction: `Montrez au Démon les choix effectués cette nuit par le Lunatique (${player.name}).`,
+          resolvedInfo: `Le Lunatique a choisi : ${names.join(', ')}.`,
+          displayReveal: { kind: 'players', playerIds: targetIds, title: 'Les choix du Lunatique' },
+          // Après l'Exorciste (8), mais avant les Démons (à partir de 9) : le Démon
+          // doit déjà savoir s'il a été exorcisé avant de recevoir les choix du Lunatique.
+          orderValue: 8.5,
+        })
+      }
+    }
+  }
+
+  if (nightType === 'other' && game.gossipKillDue) {
+    ordered.push({
+      id: 'gossip-kill', kind: 'character', characterId: 'gossip', playerIds: [],
+      title: 'Pipelette — mort', instruction: 'La déclaration de la Pipelette était vraie : choisissez maintenant un joueur qui meurt.',
+      orderValue: 16,
+    })
+  }
+  if (nightType === 'other' && game.moonchildTargetId) {
+    ordered.push({
+      id: 'moonchild-death', kind: 'character', characterId: 'moonchild', playerIds: [],
+      title: 'Moonchild — résolution', instruction: 'Vérifiez l’alignement de la cible au moment de son choix : si elle est gentille, elle meurt.',
+      orderValue: 18,
+    })
   }
 
   const drunkPlayer = findAlivePlayer('drunk')

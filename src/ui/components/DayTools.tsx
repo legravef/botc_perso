@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
-import type { GameEvent } from '@/types'
+import type { Game, GameEvent } from '@/types'
 
 function latestNightEvents(history: GameEvent[]) {
   const start = history.map((event) => event.type === 'phase.changed' && event.resultingState.phase.startsWith('night')).lastIndexOf(true)
   return start >= 0 ? history.slice(start + 1) : []
 }
 
-export function DayBriefing({ history }: { history: GameEvent[] }) {
+export function DayBriefing({ history, game }: { history: GameEvent[]; game: Game }) {
   const summary = useMemo(() => {
     const deaths = new Set<string>(); const resurrections = new Set<string>(); const prevented = new Set<string>(); const information = new Set<string>()
     for (const event of latestNightEvents(history)) {
@@ -22,7 +22,8 @@ export function DayBriefing({ history }: { history: GameEvent[] }) {
     }
     return { deaths: [...deaths], resurrections: [...resurrections], prevented: [...prevented], information: [...information] }
   }, [history])
-  const quiet = !summary.deaths.length && !summary.resurrections.length && !summary.prevented.length && !summary.information.length
+  const nightLog = game.nightLog ?? []
+  const quiet = !summary.deaths.length && !summary.resurrections.length && !summary.prevented.length && !summary.information.length && !nightLog.length
   return <section className="w-full rounded-2xl border border-accent/30 bg-accent/5 p-5 screen-enter">
     <p className="text-xs uppercase tracking-[0.16em] text-accent">Briefing du Conteur</p><h2 className="text-lg font-semibold mt-1">À annoncer au début du jour</h2>
     {quiet ? <p className="text-sm text-ink-2 mt-3">Aucun événement nocturne à annoncer. Le village se réveille sans changement visible.</p> : <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -31,6 +32,19 @@ export function DayBriefing({ history }: { history: GameEvent[] }) {
       {summary.prevented.length > 0 && <BriefCard title="Morts évitées — secret MJ" names={summary.prevented} tone="warn" />}
       {summary.information.length > 0 && <BriefCard title="Informations privées résolues" names={summary.information} tone="accent" />}
     </div>}
+    {nightLog.length > 0 && (
+      <div className="mt-4 rounded-xl border border-warn/35 bg-warn/10 p-3">
+        <p className="text-xs text-warn">Résolution détaillée de la nuit — MJ uniquement</p>
+        <ul className="mt-2 space-y-1 text-sm">
+          {nightLog.map((entry, index) => (
+            <li key={`${entry.sourceCharacterId}-${entry.targetName}-${index}`}>
+              <span className="font-medium">{entry.sourceName}</span> → {entry.targetName} : {entry.reason}
+              {entry.outcome === 'dead' ? '.' : ' — pas de mort.'}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
   </section>
 }
 

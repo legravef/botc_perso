@@ -9,6 +9,7 @@ const DEMON_HEAD_URL =
 
 interface HomeScreenProps {
   onOpenCharacterReference: () => void
+  onOpenTraining: () => void
 }
 
 const HOME_STARS = [
@@ -34,7 +35,7 @@ function LogoGlow() {
   )
 }
 
-export function HomeScreen({ onOpenCharacterReference }: HomeScreenProps) {
+export function HomeScreen({ onOpenCharacterReference, onOpenTraining }: HomeScreenProps) {
   const createGame = useGameStore((s) => s.createGame)
   const savedGames = useGameStore((s) => s.savedGames)
   const loadGame = useGameStore((s) => s.loadGame)
@@ -170,7 +171,7 @@ export function HomeScreen({ onOpenCharacterReference }: HomeScreenProps) {
           Consulter les personnages
         </Button>
 
-        <Button variant="ghost" disabled title="Disponible dans une prochaine version">
+        <Button variant="ghost" onClick={onOpenTraining}>
           Mode entraînement du Conteur
         </Button>
       </div>

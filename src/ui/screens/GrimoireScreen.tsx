@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useGameStore } from '@/store'
 import { getCharacterById } from '@/data'
-import { LAYOUT_PRESETS, generateLayoutPositions, getEffectivePosition, type LayoutPresetId } from '@/engine'
+import { LAYOUT_PRESETS, generateLayoutPositions, getEffectivePosition, getLivingNeighbors, type LayoutPresetId } from '@/engine'
 import { getReminderVisual } from '@/lib/reminderStyles'
 import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
 import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
@@ -97,6 +97,27 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
       return { id: reminder.id, target, source, reminder, visual }
     }),
   )
+  const bmrStateAlerts: { title: string; detail: string; tone: 'accent' | 'warn' | 'evil' | 'good' }[] = []
+  if (isBadMoonRising) {
+    const characterPlayer = (characterId: string) => game.players.find((player) => player.realCharacterId === characterId)
+    const isImpaired = (player: Player) => player.reminders.some((reminder) => reminder.label.startsWith('Ivre') || reminder.label.startsWith('Empoisonné'))
+    const po = characterPlayer('po')
+    if (game.poMustKillThree && po?.alive) bmrStateAlerts.push({ title: 'Po chargé', detail: `${po.name} doit choisir 3 victimes cette nuit.`, tone: 'evil' })
+    const godfather = characterPlayer('godfather')
+    if (game.godfatherKillDue && godfather?.alive) bmrStateAlerts.push({ title: 'Parrain déclenché', detail: `${godfather.name} peut tuer un joueur cette nuit.`, tone: 'evil' })
+    const shabalothVictims = game.players.filter((player) => game.shabalothVictimIds?.includes(player.id))
+    if (shabalothVictims.length > 0) bmrStateAlerts.push({ title: 'Shabaloth', detail: `Régurgitation possible : ${shabalothVictims.map((player) => player.name).join(', ')}.`, tone: 'accent' })
+    if (game.gossipKillDue) bmrStateAlerts.push({ title: 'Pipelette', detail: 'Une déclaration vraie impose une mort cette nuit.', tone: 'warn' })
+    const moonchildTarget = game.players.find((player) => player.id === game.moonchildTargetId)
+    if (moonchildTarget) bmrStateAlerts.push({ title: 'Moonchild', detail: `${moonchildTarget.name} doit mourir cette nuit s’il ou elle était gentil(le) au choix.`, tone: 'warn' })
+    const teaLady = characterPlayer('tea-lady')
+    if (teaLady?.alive && !isImpaired(teaLady)) {
+      const { left, right } = getLivingNeighbors(game.players, teaLady.id)
+      if (left?.alignment === 'good' && right?.alignment === 'good') {
+        bmrStateAlerts.push({ title: 'Herboriste', detail: `${left.name} et ${right.name} sont immortels tant qu’ils restent les voisins gentils les plus proches.`, tone: 'good' })
+      }
+    }
+  }
 
   function handleRestart() {
     if (!confirmingRestart) {
@@ -295,7 +316,21 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
             )
           }}
         />
-        {recentActivities.length > 0 && <aside className="self-stretch max-w-md 2xl:max-w-none mx-auto w-full rounded-2xl border border-border bg-surface-1/90 backdrop-blur p-4 flex flex-col gap-4 shadow-xl">
+        {(recentActivities.length > 0 || activeEffects.length > 0 || bmrStateAlerts.length > 0) && <aside className="self-stretch max-w-md 2xl:max-w-none mx-auto w-full rounded-2xl border border-border bg-surface-1/90 backdrop-blur p-4 flex flex-col gap-4 shadow-xl">
+          {bmrStateAlerts.length > 0 && (
+            <section className="rounded-xl border border-accent/25 bg-accent/5 p-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-accent">États à suivre — BMR</p>
+              <div className="mt-3 flex flex-col gap-2">
+                {bmrStateAlerts.map((alert) => (
+                  <div key={alert.title} className={`rounded-lg px-3 py-2 text-xs ${
+                    alert.tone === 'evil' ? 'bg-evil-bg text-evil' : alert.tone === 'warn' ? 'bg-warn/15 text-warn' : alert.tone === 'good' ? 'bg-good-bg text-good' : 'bg-surface-2 text-ink-1'
+                  }`}>
+                    <span className="font-semibold">{alert.title} :</span> {alert.detail}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           {activeEffects.length > 0 && (
             <section className="rounded-xl border border-accent/25 bg-accent/5 p-3">
               <p className="text-xs uppercase tracking-[0.16em] text-accent">Effets actifs</p>

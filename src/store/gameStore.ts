@@ -25,13 +25,20 @@ import {
 
 type DeathCause = 'night' | 'execution'
 
+interface DeathResolution {
+  player: Player
+  outcome: 'dead' | 'prevented' | 'survived'
+  reason: string
+}
+
 /** Un rappel "Ivre (...)" posé par l'une des capacités qui rendent quelqu'un ivre. */
 function isDrunkFrom(player: Player, sourceCharacterId: string): boolean {
   return player.reminders.some((r) => r.sourceCharacterId === sourceCharacterId && r.label.startsWith('Ivre'))
 }
 
 function isPlayerDrunk(player: Player): boolean {
-  return ['courtier', 'sailor', 'innkeeper', 'goon', 'minstrel', 'pukka'].some((source) => isDrunkFrom(player, source))
+  return ['courtier', 'sailor', 'innkeeper', 'goon', 'minstrel'].some((source) => isDrunkFrom(player, source))
+    || player.reminders.some((reminder) => reminder.label.startsWith('Empoisonné'))
 }
 
 /**
@@ -42,15 +49,15 @@ function isPlayerDrunk(player: Player): boolean {
  * Pacifiste (exécution uniquement), puis les immunités à usage unique Bouffon et Zombuul.
  * `ignoreProtection` (Assassin) court-circuite tout sauf rien : la mort est toujours appliquée.
  */
-function resolvePlayerDeath(
+function resolvePlayerDeathDetailed(
   player: Player,
   allPlayers: Player[],
   source: Character | undefined,
   cause: DeathCause,
   ignoreProtection: boolean,
-): Player {
-  if (!player.alive) return player
-  if (ignoreProtection) return { ...player, alive: false }
+): DeathResolution {
+  if (!player.alive) return { player, outcome: 'prevented', reason: 'était déjà mort(e)' }
+  if (ignoreProtection) return { player: { ...player, alive: false }, outcome: 'dead', reason: 'Assassin : les protections sont ignorées' }
 
   if (cause === 'night') {
     const protectedByInnkeeper = player.reminders.some(
@@ -58,44 +65,55 @@ function resolvePlayerDeath(
     )
     const protectedByMonk = source?.category === 'demon' && player.reminders.some((r) => r.sourceCharacterId === 'monk')
     const sailorImmune = player.realCharacterId === 'sailor' && !isPlayerDrunk(player)
-    if (protectedByInnkeeper || protectedByMonk || sailorImmune) return player
+    if (protectedByInnkeeper) return { player, outcome: 'prevented', reason: 'protégé(e) par l’Aubergiste' }
+    if (protectedByMonk) return { player, outcome: 'prevented', reason: 'protégé(e) par le Moine' }
+    if (sailorImmune) return { player, outcome: 'prevented', reason: 'Marin sobre : il est immortel cette nuit' }
   }
 
   if (cause === 'execution') {
     const advocateProtected = player.reminders.some((r) => r.sourceCharacterId === 'devils-advocate')
     const pacifistProtected = player.reminders.some((r) => r.sourceCharacterId === 'pacifist')
-    if (advocateProtected || pacifistProtected) return player
+    if (advocateProtected) return { player, outcome: 'prevented', reason: 'protégé(e) par l’Avocat du diable' }
+    if (pacifistProtected) return { player, outcome: 'prevented', reason: 'sauvé(e) par le Pacifiste' }
   }
 
   const teaLady = allPlayers.find((p) => p.alive && p.realCharacterId === 'tea-lady' && !isPlayerDrunk(p))
   if (teaLady && player.alignment === 'good') {
     const neighbors = getLivingNeighbors(allPlayers, teaLady.id)
-    if (neighbors.left?.id === player.id || neighbors.right?.id === player.id) return player
+    if (neighbors.left?.id === player.id || neighbors.right?.id === player.id) {
+      return { player, outcome: 'prevented', reason: 'protégé(e) par l’Herboriste (voisin gentil)' }
+    }
   }
 
   const foolUsed = player.reminders.some((r) => r.sourceCharacterId === 'fool')
   if (player.realCharacterId === 'fool' && !foolUsed && !isPlayerDrunk(player)) {
     return {
+      outcome: 'survived', reason: 'Bouffon : sa première vie est consommée', player: {
       ...player,
       reminders: [
         ...player.reminders,
         { id: nanoid(), label: 'Vie du Bouffon consommée', sourceCharacterId: 'fool', createdAt: new Date().toISOString() },
       ],
-    }
+    }}
   }
 
   const zombuulUsed = player.reminders.some((r) => r.sourceCharacterId === 'zombuul')
   if (player.realCharacterId === 'zombuul' && !zombuulUsed) {
     return {
+      outcome: 'survived', reason: 'Zombuul : paraît mort(e), mais reste vivant(e)', player: {
       ...player,
       reminders: [
         ...player.reminders,
         { id: nanoid(), label: 'Mort vivant', sourceCharacterId: 'zombuul', createdAt: new Date().toISOString() },
       ],
-    }
+    }}
   }
 
-  return { ...player, alive: false }
+  return { player: { ...player, alive: false }, outcome: 'dead', reason: source ? `tué(e) par ${source.nameFr}` : 'meurt' }
+}
+
+function resolvePlayerDeath(player: Player, allPlayers: Player[], source: Character | undefined, cause: DeathCause, ignoreProtection: boolean): Player {
+  return resolvePlayerDeathDetailed(player, allPlayers, source, cause, ignoreProtection).player
 }
 import { createEmptyPreparation, createPlayer } from '@/lib/factories'
 import {
@@ -174,6 +192,8 @@ interface GameStore {
   setCourtierExpiry: (night: number | null) => void
   setGodfatherOutsiderDelta: (value: -1 | 0 | 1) => void
   setLastExorcistTarget: (playerId: string | null) => void
+  setLastDevilsAdvocateTarget: (playerId: string | null) => void
+  setLunaticTargets: (playerIds: string[]) => void
   setGodfatherKillDue: (value: boolean) => void
   setShabalothVictims: (playerIds: string[]) => void
   setGossipKillDue: (value: boolean) => void
@@ -230,11 +250,15 @@ export const useGameStore = create<GameStore>((set, get) => {
       courtierExpiresOnNight: null,
       godfatherOutsiderDelta: 0,
       lastExorcistTargetId: null,
+      lastDevilsAdvocateTargetId: null,
+      lunaticTargetIds: [],
+      minstrelExpiresOnNight: null,
       godfatherKillDue: false,
       shabalothVictimIds: [],
       gossipKillDue: false,
       moonchildTargetId: null,
       moonchildTargetWasGood: null,
+      nightLog: [],
       gameNotes: [],
       publicScreenActive: false,
       end: null,
@@ -354,15 +378,22 @@ export const useGameStore = create<GameStore>((set, get) => {
     setPreparation: (partial) =>
       commit('preparation.updated', (g) => {
         const preparation = { ...g.preparation, ...partial }
-        // L'Ivrogne doit voir le Villageois cru comme son propre personnage sur l'écran de révélation.
-        const players =
-          'drunkBelievedCharacterId' in partial
-            ? g.players.map((p) =>
-                p.realCharacterId === 'drunk'
-                  ? { ...p, perceivedCharacterId: preparation.drunkBelievedCharacterId }
-                  : p,
-              )
-            : g.players
+        // L'Ivrogne et le Lunatique doivent voir leur identité fictive à la révélation.
+        let players = g.players
+        if ('drunkBelievedCharacterId' in partial) {
+          players = players.map((p) =>
+            p.realCharacterId === 'drunk'
+              ? { ...p, perceivedCharacterId: preparation.drunkBelievedCharacterId }
+              : p,
+          )
+        }
+        if ('lunaticBelievedDemonId' in partial) {
+          players = players.map((p) =>
+            p.realCharacterId === 'lunatic'
+              ? { ...p, perceivedCharacterId: preparation.lunaticBelievedDemonId }
+              : p,
+          )
+        }
         return { ...g, preparation, players }
       }),
 
@@ -396,11 +427,15 @@ export const useGameStore = create<GameStore>((set, get) => {
       commit('phase.changed', (g) => {
         const nightNumber = g.nightNumber + 1
         const courtierExpired = g.courtierExpiresOnNight !== null && g.courtierExpiresOnNight !== undefined && nightNumber > g.courtierExpiresOnNight
+        const minstrelExpired = g.minstrelExpiresOnNight !== null && g.minstrelExpiresOnNight !== undefined && nightNumber > g.minstrelExpiresOnNight
         return {
           ...g,
           phase: 'night.other',
           nightNumber,
+          lunaticTargetIds: [],
+          nightLog: [],
           courtierExpiresOnNight: courtierExpired ? null : g.courtierExpiresOnNight,
+          minstrelExpiresOnNight: minstrelExpired ? null : g.minstrelExpiresOnNight,
           players: g.players.map((player) => ({
             ...player,
             // Effets valables "jusqu'au prochain crépuscule" (début de la nuit suivante) :
@@ -410,7 +445,7 @@ export const useGameStore = create<GameStore>((set, get) => {
               if (reminder.sourceCharacterId === 'devils-advocate') return false
               if (reminder.sourceCharacterId === 'goon' || reminder.sourceCharacterId === 'goon-flip') return false
               if (reminder.sourceCharacterId === 'innkeeper' && reminder.label.startsWith('Ivre')) return false
-              if (reminder.sourceCharacterId === 'minstrel') return false
+              if (minstrelExpired && reminder.sourceCharacterId === 'minstrel') return false
               if (courtierExpired && reminder.sourceCharacterId === 'courtier') return false
               return true
             }),
@@ -451,6 +486,9 @@ export const useGameStore = create<GameStore>((set, get) => {
             mastermindExtraDayDueOnDay:
               isDemonExecution && mastermindAlive ? g.dayNumber + 1 : g.mastermindExtraDayDueOnDay,
             godfatherKillDue,
+            minstrelExpiresOnNight: executedDied && executedCharacter?.category === 'minion' && minstrelAlive
+              ? g.nightNumber + 1
+              : g.minstrelExpiresOnNight,
             players,
           }
         },
@@ -462,10 +500,20 @@ export const useGameStore = create<GameStore>((set, get) => {
         'player.updated',
         (g) => {
           const source = getCharacterById(g.scriptId, sourceCharacterId)
+          const sourcePlayer = g.players.find((player) => player.realCharacterId === sourceCharacterId)
+          const sourceName = sourcePlayer && source ? `${sourcePlayer.name} (${source.nameFr})` : (source?.nameFr ?? sourceCharacterId)
           const targets = new Set(playerIds)
-          let players = g.players.map((player) =>
-            targets.has(player.id) ? resolvePlayerDeath(player, g.players, source, 'night', ignoreProtection) : player,
-          )
+          const resolutions = g.players
+            .filter((player) => targets.has(player.id))
+            .map((player) => ({ player, resolution: resolvePlayerDeathDetailed(player, g.players, source, 'night', ignoreProtection) }))
+          let players = g.players.map((player) => resolutions.find((entry) => entry.player.id === player.id)?.resolution.player ?? player)
+          const nightLog = [...(g.nightLog ?? []), ...resolutions.map(({ player, resolution }) => ({
+            sourceCharacterId,
+            sourceName,
+            targetName: player.name,
+            outcome: resolution.outcome,
+            reason: resolution.reason,
+          }))]
           // Grand-mère : si le Démon tue le joueur qu'elle a vu en première nuit, elle meurt aussi.
           const linkedId = g.preparation.grandmotherRevealPlayerId
           if (source?.category === 'demon' && linkedId && targets.has(linkedId)) {
@@ -474,13 +522,16 @@ export const useGameStore = create<GameStore>((set, get) => {
               const grandmother = players.find((p) => p.alive && p.realCharacterId === 'grandmother')
               if (grandmother) {
                 const grandmotherCharacter = getCharacterById(g.scriptId, 'grandmother')
-                players = players.map((p) =>
-                  p.id === grandmother.id ? resolvePlayerDeath(p, players, grandmotherCharacter, 'night', false) : p,
-                )
+                const resolution = resolvePlayerDeathDetailed(grandmother, players, grandmotherCharacter, 'night', false)
+                players = players.map((p) => p.id === grandmother.id ? resolution.player : p)
+                nightLog.push({
+                  sourceCharacterId: 'grandmother', sourceName: 'Grand-mère', targetName: grandmother.name,
+                  outcome: resolution.outcome, reason: `meurt car le Démon a tué son petit-fils (${resolution.reason})`,
+                })
               }
             }
           }
-          return { ...g, players }
+          return { ...g, players, nightLog }
         },
         { targetIds: playerIds, payload: { sourceCharacterId, ignoreProtection } },
       ),
@@ -524,6 +575,8 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     setGodfatherOutsiderDelta: (value) => commit('composition.set', (g) => ({ ...g, godfatherOutsiderDelta: value })),
     setLastExorcistTarget: (playerId) => commit('player.updated', (g) => ({ ...g, lastExorcistTargetId: playerId })),
+    setLastDevilsAdvocateTarget: (playerId) => commit('player.updated', (g) => ({ ...g, lastDevilsAdvocateTargetId: playerId })),
+    setLunaticTargets: (playerIds) => commit('player.updated', (g) => ({ ...g, lunaticTargetIds: playerIds })),
     setGodfatherKillDue: (value) => commit('player.updated', (g) => ({ ...g, godfatherKillDue: value })),
     setShabalothVictims: (playerIds) => commit('player.updated', (g) => ({ ...g, shabalothVictimIds: playerIds })),
     setGossipKillDue: (value) => commit('player.updated', (g) => ({ ...g, gossipKillDue: value })),

@@ -45,6 +45,14 @@ export interface GameEndInfo {
   confirmedAt: string
 }
 
+export interface NightLogEntry {
+  sourceCharacterId: string
+  sourceName: string
+  targetName: string
+  outcome: 'dead' | 'prevented' | 'survived'
+  reason: string
+}
+
 /**
  * Choix effectués par le Conteur lors de la "Préparation automatique de la
  * partie" (voir spécification), utilisés ensuite par l'assistant de
@@ -68,6 +76,12 @@ export interface Preparation {
   fortuneTellerRedHerringPlayerId: string | null
   /** Personnage de Villageois absent que l'Ivrogne croit posséder. */
   drunkBelievedCharacterId: string | null
+  /** Bad Moon Rising — Démon que le Lunatique croit être. */
+  lunaticBelievedDemonId: string | null
+  /** Bad Moon Rising — joueurs présentés au Lunatique comme ses Sbires. */
+  lunaticMinionPlayerIds: string[]
+  /** Bad Moon Rising — personnages absents présentés au Lunatique comme ses bluffs. */
+  lunaticBluffCharacterIds: string[]
   /** Jusqu'à 3 personnages absents utilisés comme bluffs par le Diablotin. */
   impBluffCharacterIds: string[]
   /** Bad Moon Rising — joueur bon montré à la Grand-mère la première nuit (aussi utilisé pour sa malédiction). */
@@ -103,6 +117,12 @@ export interface Game {
   godfatherOutsiderDelta?: -1 | 0 | 1
   /** Bad Moon Rising — mémoire de la cible de l’Exorciste. */
   lastExorcistTargetId?: string | null
+  /** Bad Moon Rising — mémoire de la cible précédente de l’Avocat du diable. */
+  lastDevilsAdvocateTargetId?: string | null
+  /** Bad Moon Rising — derniers choix simulés du Lunatique, à montrer au vrai Démon. */
+  lunaticTargetIds?: string[]
+  /** Bad Moon Rising — nuit jusqu’à laquelle l’ivresse du Ménestrel reste active. */
+  minstrelExpiresOnNight?: number | null
   /** Bad Moon Rising — le Parrain peut tuer cette nuit après la mort diurne d’un Paria. */
   godfatherKillDue?: boolean
   /** Bad Moon Rising — victimes de la dernière attaque du Shabaloth, disponibles à la régurgitation. */
@@ -112,6 +132,8 @@ export interface Game {
   /** Bad Moon Rising — Moonchild : cible choisie publiquement au moment de sa mort. */
   moonchildTargetId?: string | null
   moonchildTargetWasGood?: boolean | null
+  /** Résolution détaillée de la nuit courante, uniquement visible du MJ. */
+  nightLog?: NightLogEntry[]
 
   gameNotes: PlayerNote[]
 

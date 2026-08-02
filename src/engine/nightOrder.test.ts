@@ -71,6 +71,9 @@ function buildFixture() {
       investigator: { characterId: 'poisoner', playerAId: poisonerP.id, playerBId: librarianP.id },
       fortuneTellerRedHerringPlayerId: empathP.id,
       drunkBelievedCharacterId: 'monk',
+      lunaticBelievedDemonId: null,
+      lunaticMinionPlayerIds: [],
+      lunaticBluffCharacterIds: [],
       impBluffCharacterIds: ['chef', 'virgin', 'saint'],
       grandmotherRevealPlayerId: null,
     },
@@ -204,5 +207,27 @@ describe('generateNightSteps — Bad Moon Rising', () => {
     expect(steps[1]?.kind).toBe('demon-info')
     expect(steps[1]?.bluffCharacterIds).toEqual(['sailor', 'tinker', 'fool'])
     expect(steps.some((step) => step.characterId === 'grandmother')).toBe(true)
+  })
+
+  it('réveille aussi Bras droit, Marin, Courtisane et Avocat du diable la première nuit (pas d’astérisque sur la feuille V3)', () => {
+    const script = 'bad-moon-rising' as const
+    const ids = ['grandmother', 'goon', 'sailor', 'courtier', 'devils-advocate', 'chambermaid', 'godfather', 'shabaloth']
+    const players = ids.map((characterId, index) => {
+      const player = createPlayer(`BMR ${index + 1}`, index)
+      const character = getCharacterById(script, characterId)
+      return { ...player, realCharacterId: characterId, alignment: character!.team }
+    })
+    const game = makeGame({ scriptId: script, players })
+
+    const steps = generateNightSteps(game, 'first')
+    for (const characterId of ids.filter((id) => id !== 'shabaloth')) {
+      expect(steps.some((step) => step.characterId === characterId)).toBe(true)
+    }
+    // Shabaloth n'agit jamais la première nuit (astérisque sur la feuille).
+    expect(steps.some((step) => step.characterId === 'shabaloth')).toBe(false)
+    // Grand-mère et Concierge agissent après Pukka/l'Avocat du diable, pas en tout début de nuit.
+    const orderIndex = (id: string) => steps.findIndex((step) => step.characterId === id)
+    expect(orderIndex('goon')).toBeLessThan(orderIndex('grandmother'))
+    expect(orderIndex('devils-advocate')).toBeLessThan(orderIndex('grandmother'))
   })
 })

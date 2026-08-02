@@ -113,6 +113,7 @@ export function PreparationScreen() {
   const needsInvestigator = inPlay('investigator')
   const needsFortuneTeller = inPlay('fortune-teller')
   const needsDrunk = inPlay('drunk')
+  const needsLunatic = inPlay('lunatic')
   const needsGrandmother = inPlay('grandmother')
   const demon = game.players
     .map((player) => ({ player, character: player.realCharacterId ? getCharactersForScript(game.scriptId).find((c) => c.id === player.realCharacterId) : undefined }))
@@ -133,6 +134,11 @@ export function PreparationScreen() {
       c.id !== game.preparation.drunkBelievedCharacterId,
   )
   const goodPlayers = game.players.filter((p) => p.alignment === 'good')
+  const demonChoices = scriptCharacters.filter((character) => character.category === 'demon')
+  const lunaticPlayer = game.players.find((player) => player.realCharacterId === 'lunatic')
+  const lunaticMinionSlots = game.composition?.effectiveCounts.minion ?? 0
+  const lunaticMinionPlayerIds = game.preparation.lunaticMinionPlayerIds ?? []
+  const lunaticBluffCharacterIds = game.preparation.lunaticBluffCharacterIds ?? []
 
   const ready =
     (!needsWasherwoman || !!game.preparation.washerwoman) &&
@@ -140,6 +146,9 @@ export function PreparationScreen() {
     (!needsInvestigator || !!game.preparation.investigator) &&
     (!needsFortuneTeller || !!game.preparation.fortuneTellerRedHerringPlayerId) &&
     (!needsDrunk || !!game.preparation.drunkBelievedCharacterId) &&
+    (!needsLunatic || !!game.preparation.lunaticBelievedDemonId) &&
+    (!needsLunatic || lunaticMinionPlayerIds.length === lunaticMinionSlots) &&
+    (!needsLunatic || lunaticBluffCharacterIds.length === 3) &&
     (!needsDemonBluffs || game.preparation.impBluffCharacterIds.length === 3) &&
     (!needsGrandmother || !!game.preparation.grandmotherRevealPlayerId)
 
@@ -279,6 +288,85 @@ export function PreparationScreen() {
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {needsLunatic && (
+          <div className="bg-warn/10 border border-warn/40 rounded-lg p-4">
+            <h3 className="font-medium mb-2">Lunatique — Démon cru</h3>
+            <p className="text-xs text-ink-2 mb-2">
+              Le Lunatique doit recevoir un jeton de Démon à la révélation, jamais son vrai jeton de Lunatique.
+              Définissez ensuite la fausse équipe et les bluffs qu'il recevra à la première nuit.
+            </p>
+            <select
+              value={game.preparation.lunaticBelievedDemonId ?? ''}
+              onChange={(e) => setPreparation({ lunaticBelievedDemonId: e.target.value || null })}
+              className="w-full bg-surface-2 border border-border rounded px-2 py-2"
+            >
+              <option value="">— Choisir un Démon —</option>
+              {demonChoices.map((character) => (
+                <option key={character.id} value={character.id}>
+                  {character.nameFr}
+                </option>
+              ))}
+            </select>
+            <div className="mt-4">
+              <p className="text-xs text-ink-2 mb-2">
+                Faux Sbires à lui montrer ({lunaticMinionSlots}) — les joueurs indiqués ne voient rien à ce moment-là.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {Array.from({ length: lunaticMinionSlots }, (_, slot) => {
+                  const currentId = lunaticMinionPlayerIds[slot] ?? ''
+                  const options = game.players.filter((player) =>
+                    player.id !== lunaticPlayer?.id &&
+                    (player.id === currentId || !lunaticMinionPlayerIds.includes(player.id)),
+                  )
+                  return (
+                    <select
+                      key={slot}
+                      value={currentId}
+                      onChange={(e) => {
+                        const next = [...lunaticMinionPlayerIds]
+                        if (e.target.value) next[slot] = e.target.value
+                        else next.splice(slot, 1)
+                        setPreparation({ lunaticMinionPlayerIds: next.filter(Boolean) })
+                      }}
+                      className="bg-surface-2 border border-border rounded px-2 py-2"
+                    >
+                      <option value="">— Faux Sbire {slot + 1} —</option>
+                      {options.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                    </select>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs text-ink-2 mb-2">Les 3 bluffs à montrer au Lunatique</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[0, 1, 2].map((slot) => {
+                  const currentId = lunaticBluffCharacterIds[slot] ?? ''
+                  const options = absentForBluffs.filter(
+                    (character) => character.id === currentId || !lunaticBluffCharacterIds.includes(character.id),
+                  )
+                  return (
+                    <select
+                      key={slot}
+                      value={currentId}
+                      onChange={(e) => {
+                        const next = [...lunaticBluffCharacterIds]
+                        if (e.target.value) next[slot] = e.target.value
+                        else next.splice(slot, 1)
+                        setPreparation({ lunaticBluffCharacterIds: next.filter(Boolean) })
+                      }}
+                      className="bg-surface-2 border border-border rounded px-2 py-2"
+                    >
+                      <option value="">— Bluff {slot + 1} —</option>
+                      {options.map((character) => <option key={character.id} value={character.id}>{character.nameFr}</option>)}
+                    </select>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         )}
 

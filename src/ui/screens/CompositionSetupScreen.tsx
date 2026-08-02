@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useGameStore } from '@/store'
 import { getCharactersForScript } from '@/data'
 import { generateRandomComposition, generateSuggestedComposition, validateComposition } from '@/engine'
@@ -43,16 +43,50 @@ export function CompositionSetupScreen() {
   const [locked, setLocked] = useState<Set<string>>(new Set())
   const [randomError, setRandomError] = useState<string | null>(null)
   const [godfatherDelta, setGodfatherDelta] = useState<-1 | 0 | 1>(game?.godfatherOutsiderDelta ?? 0)
+  const previousGodfatherDelta = useRef(godfatherDelta)
 
   const composition = useMemo(
     () => validateComposition([...selected], playerCount, scriptId, godfatherDelta),
     [selected, playerCount, scriptId, godfatherDelta],
   )
 
+  const rebalanceGodfather = useCallback((ids: Set<string>, from: -1 | 0 | 1, to: -1 | 0 | 1): Set<string> => {
+    const next = new Set(ids)
+    const amount = to - from
+    const characters = getCharactersForScript(scriptId)
+    const replace = (remove: CharacterCategory, add: CharacterCategory) => {
+      const removeId = [...next].find((id) => !locked.has(id) && characters.find((character) => character.id === id)?.category === remove)
+      const addId = characters.find((character) => character.category === add && !next.has(character.id))?.id
+      if (!removeId || !addId) return
+      next.delete(removeId)
+      next.add(addId)
+    }
+    for (let step = 0; step < Math.abs(amount); step += 1) {
+      if (amount > 0) replace('townsfolk', 'outsider')
+      else replace('outsider', 'townsfolk')
+    }
+    return next
+  }, [locked, scriptId])
+
+  useEffect(() => {
+    const previous = previousGodfatherDelta.current
+    if (previous === godfatherDelta) return
+    previousGodfatherDelta.current = godfatherDelta
+    setGodfatherOutsiderDelta(godfatherDelta)
+    setSelected((current) => current.has('godfather') ? rebalanceGodfather(current, previous, godfatherDelta) : current)
+  }, [godfatherDelta, rebalanceGodfather, setGodfatherOutsiderDelta])
+
   function toggleCharacter(id: string) {
     setSelected((current) => {
       const next = new Set(current)
       if (next.has(id)) {
+        if (id === 'godfather') {
+          const rebalanced = rebalanceGodfather(next, godfatherDelta, 0)
+          rebalanced.delete(id)
+          setGodfatherDelta(0)
+          setGodfatherOutsiderDelta(0)
+          return rebalanced
+        }
         next.delete(id)
         setLocked((l) => {
           const nl = new Set(l)
@@ -79,7 +113,10 @@ export function CompositionSetupScreen() {
     try {
       const lockedIds = [...selected].filter((id) => locked.has(id))
       const result = generateRandomComposition({ playerCount, scriptId, lockedCharacterIds: lockedIds })
+      const delta: -1 | 0 | 1 = result.characterIds.includes('godfather') ? 1 : 0
       setSelected(new Set(result.characterIds))
+      setGodfatherDelta(delta)
+      setGodfatherOutsiderDelta(delta)
       setRandomError(null)
     } catch (err) {
       setRandomError(err instanceof Error ? err.message : 'Tirage impossible.')
@@ -90,7 +127,10 @@ export function CompositionSetupScreen() {
     try {
       const lockedIds = [...selected].filter((id) => locked.has(id))
       const result = generateSuggestedComposition({ playerCount, scriptId, level, lockedCharacterIds: lockedIds })
+      const delta: -1 | 0 | 1 = result.characterIds.includes('godfather') ? 1 : 0
       setSelected(new Set(result.characterIds))
+      setGodfatherDelta(delta)
+      setGodfatherOutsiderDelta(delta)
       setRandomError(null)
     } catch (err) {
       setRandomError(err instanceof Error ? err.message : 'Tirage impossible.')
