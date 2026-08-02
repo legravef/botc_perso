@@ -160,7 +160,3 @@ body {
   --color-ink-2: #6b6d78;
   --color-border: #d5d5db;
 }
-
-:root[data-table-mode="true"] {
-  font-size: 18px;
-}

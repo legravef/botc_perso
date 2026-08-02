@@ -314,8 +314,12 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
           .filter((name): name is string => Boolean(name))
         ordered.push({
           id: `lunatic-targets-${demonPlayer.id}`,
-          kind: 'character',
-          characterId: demonPlayer.realCharacterId,
+          // Étape purement informative : characterId reste null (contrairement au vrai réveil du
+          // Démon juste après) pour que l'assistant de nuit n'affiche pas aussi le sélecteur de
+          // cible d'action ici — sinon le Conteur le voit une fois en trop, sur cette étape ET sur
+          // celle du Démon qui suit.
+          kind: 'demon-info',
+          characterId: null,
           playerIds: [demonPlayer.id],
           title: 'Information du Démon',
           instruction: `Montrez au Démon les choix effectués cette nuit par le Lunatique (${player.name}).`,

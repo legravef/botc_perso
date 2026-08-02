@@ -4,6 +4,7 @@ import { getCharacterById } from '@/data'
 import { buildRoleShareUrl } from '@/lib/roleShare'
 import { Button } from '../components/Button'
 import { RoleIcon } from '../components/RoleIcon'
+import { SkyBanner } from '../components/SkyBanner'
 
 type Stage = 'neutral' | 'confirm' | 'revealed'
 
@@ -85,24 +86,30 @@ export function RevealScreen() {
 
       <main className="flex-1 flex items-center justify-center px-6 py-10">
         {stage === 'neutral' && (
-          <div className="max-w-2xl w-full">
-            <p className="text-center text-ink-2 mb-6">Sélectionnez le prochain joueur.</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {players.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    setSelectedPlayerId(p.id)
-                    setStage('confirm')
-                  }}
-                  className={`rounded-xl border px-4 py-4 text-center transition hover:brightness-125 ${
-                    revealedIds.has(p.id) ? 'border-success bg-surface-2' : 'border-border bg-surface-1'
-                  }`}
-                >
-                  <div className="font-medium">{p.name}</div>
-                  {revealedIds.has(p.id) && <div className="text-[10px] text-success mt-1">✓ a vu son rôle</div>}
-                </button>
-              ))}
+          <div className="max-w-2xl w-full flex flex-col gap-6">
+            <SkyBanner variant="night" className="h-40 w-full" />
+            <div>
+              <p className="text-center text-ink-2 mb-1">
+                {revealedIds.size} / {players.length} joueurs ont déjà vu leur rôle
+              </p>
+              <p className="text-center text-ink-0 text-lg mb-6">Sélectionnez le prochain joueur.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {players.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setSelectedPlayerId(p.id)
+                      setStage('confirm')
+                    }}
+                    className={`min-h-20 rounded-xl border px-4 py-4 text-center transition hover:brightness-125 active:scale-[0.98] ${
+                      revealedIds.has(p.id) ? 'border-success bg-surface-2' : 'border-border bg-surface-1'
+                    }`}
+                  >
+                    <div className="font-medium text-lg">{p.name}</div>
+                    {revealedIds.has(p.id) && <div className="text-[10px] text-success mt-1">✓ a vu son rôle</div>}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

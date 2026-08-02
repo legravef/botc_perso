@@ -3,7 +3,6 @@ import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
 import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
 import { useGameStore } from '@/store'
 import { Button } from './Button'
-import { TableModeToggle } from './TableModeToggle'
 
 interface ScreenProps {
   title: string
@@ -33,7 +32,6 @@ export function Screen({ title, subtitle, onBack, headerActions, children, foote
         </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
-          <TableModeToggle />
           {headerActions}
         </div>
       </header>

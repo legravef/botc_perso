@@ -10,7 +10,6 @@ import { SeatingLayout } from '../components/SeatingLayout'
 import { Button } from '../components/Button'
 import { PlayerDetailPanel } from '../components/PlayerDetailPanel'
 import { RoleIcon } from '../components/RoleIcon'
-import { TableModeToggle } from '../components/TableModeToggle'
 
 const GRIMOIRE_STARS = [
   { top: 6, left: 5 },
@@ -208,7 +207,6 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
           </div>
         </div>
         <div className="flex gap-2">
-          <TableModeToggle />
           {onBack && (
             <Button variant="ghost" onClick={onBack}>
               ← Retour

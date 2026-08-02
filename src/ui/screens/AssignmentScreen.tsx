@@ -4,6 +4,7 @@ import { getCharactersForScript } from '@/data'
 import { Screen } from '../components/Screen'
 import { Button } from '../components/Button'
 import { RoleIcon } from '../components/RoleIcon'
+import { CharacterPickerOverlay } from '../components/CharacterPickerOverlay'
 
 export function AssignmentScreen() {
   const game = useGameStore((s) => s.game)
@@ -17,6 +18,7 @@ export function AssignmentScreen() {
   const [assignments, setAssignments] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(players.map((p) => [p.id, p.realCharacterId])),
   )
+  const [pickingForPlayerId, setPickingForPlayerId] = useState<string | null>(null)
 
   function setAssignment(playerId: string, characterId: string) {
     setAssignments((current) => {
@@ -72,38 +74,43 @@ export function AssignmentScreen() {
           Attribution aléatoire
         </Button>
         <ul className="flex flex-col gap-2">
-          {players.map((player) => (
-            <li
-              key={player.id}
-              className="flex items-center gap-3 bg-surface-1 border border-border rounded-lg px-3 py-2"
-            >
-              <RoleIcon characterId={assignments[player.id]} size={28} />
-              <span className="flex-1 font-medium">{player.name}</span>
-              <select
-                value={assignments[player.id] ?? ''}
-                onChange={(e) => setAssignment(player.id, e.target.value)}
-                className="bg-surface-2 border border-border rounded px-2 py-1 text-ink-0"
+          {players.map((player) => {
+            const character = assignments[player.id] ? characters.find((c) => c.id === assignments[player.id]) : undefined
+            return (
+              <li
+                key={player.id}
+                className="flex items-center gap-3 bg-surface-1 border border-border rounded-lg px-3 py-2"
               >
-                <option value="">— Choisir —</option>
-                {characterIds.map((cid) => {
-                  const character = characters.find((c) => c.id === cid)
-                  const holder = players.find((p) => p.id !== player.id && assignments[p.id] === cid)
-                  return (
-                    <option key={cid} value={cid}>
-                      {character?.nameFr ?? cid}
-                      {holder ? ` (actuellement : ${holder.name})` : ''}
-                    </option>
-                  )
-                })}
-              </select>
-            </li>
-          ))}
+                <RoleIcon characterId={assignments[player.id]} size={28} />
+                <span className="flex-1 font-medium">{player.name}</span>
+                <Button variant="secondary" className="px-3 py-2 text-sm" onClick={() => setPickingForPlayerId(player.id)}>
+                  {character?.nameFr ?? '— Choisir —'}
+                </Button>
+              </li>
+            )
+          })}
         </ul>
         <p className="text-xs text-ink-2">
           Choisir un rôle déjà attribué à quelqu'un d'autre le lui retire automatiquement pour le donner à ce
           joueur.
         </p>
       </div>
+      {pickingForPlayerId && (
+        <CharacterPickerOverlay
+          title="Attribution des personnages"
+          subtitle={`Choisissez le rôle de ${players.find((p) => p.id === pickingForPlayerId)?.name ?? ''}`}
+          characters={characterIds.map((cid) => characters.find((c) => c.id === cid)).filter((c): c is NonNullable<typeof c> => Boolean(c))}
+          getBadge={(candidate) => {
+            const holder = players.find((p) => p.id !== pickingForPlayerId && assignments[p.id] === candidate.id)
+            return holder ? `actuellement : ${holder.name}` : undefined
+          }}
+          onSelect={(characterId) => {
+            if (pickingForPlayerId) setAssignment(pickingForPlayerId, characterId)
+            setPickingForPlayerId(null)
+          }}
+          onClose={() => setPickingForPlayerId(null)}
+        />
+      )}
     </Screen>
   )
 }

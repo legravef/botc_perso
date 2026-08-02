@@ -8,8 +8,9 @@ import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
 import { Button } from '../components/Button'
 import { RoleIcon } from '../components/RoleIcon'
 import { SkyBanner } from '../components/SkyBanner'
-import { TableModeToggle } from '../components/TableModeToggle'
 import { PlayerChoiceGrid } from '../components/PlayerChoiceGrid'
+import { CharacterChoiceGrid } from '../components/CharacterChoiceGrid'
+import { CharacterPickerOverlay } from '../components/CharacterPickerOverlay'
 
 interface AutoReminderConfig {
   /** Joueurs proposés dans le sélecteur de cible. */
@@ -74,7 +75,6 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [bmrDrunkPlayerId, setBmrDrunkPlayerId] = useState('')
   const [bmrCharacterChoice, setBmrCharacterChoice] = useState('')
   const [showCourtierRolePicker, setShowCourtierRolePicker] = useState(false)
-  const [bmrGuessCorrect, setBmrGuessCorrect] = useState('')
   const [bmrRecorded, setBmrRecorded] = useState(false)
   const [impTargetId, setImpTargetId] = useState('')
   const [impSuccessorId, setImpSuccessorId] = useState('')
@@ -98,7 +98,6 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setBmrDrunkPlayerId('')
     setBmrCharacterChoice('')
     setShowCourtierRolePicker(false)
-    setBmrGuessCorrect('')
     setBmrRecorded(false)
     setImpTargetId('')
     setImpSuccessorId('')
@@ -109,7 +108,12 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setBmrInfoResult(null)
     setSpecialKillTargetId('')
     setShowNightSummary(false)
-  }, [index])
+    // Dépend de l'identité de l'étape (son id), pas seulement de l'index : si une action tue le
+    // joueur en train d'agir (Parieur qui se trompe, Diablotin qui se choisit lui-même...), la
+    // liste des étapes se recalcule et une étape différente peut se retrouver au même index —
+    // sans ce garde-fou, l'état de l'étape précédente (résultat affiché, "déjà enregistré") reste
+    // affiché par erreur sur la nouvelle étape.
+  }, [index, steps[index]?.id])
 
   useEffect(() => {
     if (!showReveal) return
@@ -304,8 +308,11 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     if (!bmrTargetSelectionValid()) return
     const targets = bmrTargetIds.map((id) => game.players.find((player) => player.id === id)).filter((p): p is Player => Boolean(p))
     const targetNames = targets.length > 0 ? targets.map((player) => player.name).join(', ') : 'personne'
+    // Le Parieur ne dit jamais le vrai rôle à l'écran (le joueur tient la tablette) : l'appli
+    // compare elle-même l'annonce au rôle réel, en silence, pour décider s'il meurt.
+    const gamblerGuessWrong = bmrCharacter.id === 'gambler' && targets[0] ? targets[0].realCharacterId !== bmrCharacterChoice : false
     const detail = bmrCharacter.id === 'gambler' && bmrCharacterChoice
-      ? ` — annonce : ${getCharacterById(game.scriptId, bmrCharacterChoice)?.nameFr ?? bmrCharacterChoice}`
+      ? ` — annonce : ${getCharacterById(game.scriptId, bmrCharacterChoice)?.nameFr ?? bmrCharacterChoice} (${gamblerGuessWrong ? 'fausse' : 'correcte'})`
       : ''
     addNote(actingPlayerId, `${['assassin', 'professor'].includes(bmrCharacter.id) ? `[BMR:${bmrCharacter.id}] ` : ''}${bmrCharacter.nameFr} : ${targetNames}${detail}`, 'power-used')
 
@@ -367,7 +374,12 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
         if (role?.category === 'townsfolk') revivePlayer(target.id)
       }
     }
-    if (bmrCharacter.id === 'gambler' && bmrGuessCorrect === 'false') killPlayer(actingPlayerId)
+    if (gamblerGuessWrong) {
+      killPlayer(actingPlayerId)
+      setNightOutcome(`Annonce fausse : ${actingPlayer?.name ?? 'le Parieur'} meurt cette nuit.`)
+    } else if (bmrCharacter.id === 'gambler') {
+      setNightOutcome(`Annonce correcte : ${actingPlayer?.name ?? 'le Parieur'} survit.`)
+    }
     setBmrRecorded(true)
   }
 
@@ -466,7 +478,6 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <TableModeToggle />
           <Button variant="ghost" onClick={onOpenGrimoire}>Grimoire</Button>
         </div>
       </header>
@@ -760,15 +771,26 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                     />
                   </div>
                 )}
-                {bmrCharacter.id === 'gambler' && bmrTargetIds.length === 1 && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <select value={bmrCharacterChoice} onChange={(e) => setBmrCharacterChoice(e.target.value)} disabled={bmrRecorded} className="bg-surface-1 border border-border rounded px-2 py-2">
-                      <option value="">— Rôle annoncé —</option>
-                      {getCharactersForScript(game.scriptId).map((character) => <option key={character.id} value={character.id}>{character.nameFr}</option>)}
-                    </select>
-                    <select value={bmrGuessCorrect} onChange={(e) => setBmrGuessCorrect(e.target.value)} disabled={bmrRecorded} className="bg-surface-1 border border-border rounded px-2 py-2">
-                      <option value="">— Résultat —</option><option value="true">Bonne annonce</option><option value="false">Annonce fausse : le Parieur meurt</option>
-                    </select>
+                {bmrCharacter.id === 'gambler' && bmrTargetIds.length === 1 && !bmrCharacterChoice && (
+                  <div>
+                    <label className="block text-xs text-ink-2 mb-2">Rôle annoncé par le Parieur (le joueur choisit lui-même)</label>
+                    <CharacterChoiceGrid
+                      characters={getCharactersForScript(game.scriptId)}
+                      selectedIds={[]}
+                      onSelect={setBmrCharacterChoice}
+                    />
+                  </div>
+                )}
+                {bmrCharacter.id === 'gambler' && bmrCharacterChoice && !bmrRecorded && (
+                  <div className="bg-warn/10 border border-warn/40 rounded-lg p-4 flex flex-col gap-2">
+                    <p className="text-sm font-medium">Annonce enregistrée — rendez la tablette au Conteur.</p>
+                    <p className="text-xs text-ink-2">
+                      Le résultat n'apparaîtra qu'après validation par le Conteur ci-dessous — le vrai rôle n'est
+                      jamais affiché au joueur.
+                    </p>
+                    <Button variant="ghost" className="self-start text-xs px-2 py-1" onClick={() => setBmrCharacterChoice('')}>
+                      Modifier l'annonce (Conteur)
+                    </Button>
                   </div>
                 )}
                 {(bmrCharacter.id === 'sailor' || bmrCharacter.id === 'innkeeper') && bmrTargetIds.length > 0 && (
@@ -788,8 +810,8 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                     </select>
                   </div>
                 )}
-                <Button variant="secondary" disabled={bmrRecorded || hasUsedBmrPower || (bmrCharacter.id === 'courtier' ? !bmrCharacterChoice : !bmrTargetSelectionValid()) || ((bmrCharacter.id === 'sailor' || bmrCharacter.id === 'innkeeper') && !bmrDrunkPlayerId) || (bmrCharacter.id === 'gambler' && (!bmrCharacterChoice || !bmrGuessCorrect))} onClick={recordBmrAction}>
-                  {bmrRecorded ? 'Décision enregistrée' : 'Enregistrer dans le grimoire'}
+                <Button variant="secondary" disabled={bmrRecorded || hasUsedBmrPower || (bmrCharacter.id === 'courtier' ? !bmrCharacterChoice : !bmrTargetSelectionValid()) || ((bmrCharacter.id === 'sailor' || bmrCharacter.id === 'innkeeper') && !bmrDrunkPlayerId) || (bmrCharacter.id === 'gambler' && !bmrCharacterChoice)} onClick={recordBmrAction}>
+                  {bmrRecorded ? 'Décision enregistrée' : bmrCharacter.id === 'gambler' ? 'Conteur : valider le résultat' : 'Enregistrer dans le grimoire'}
                 </Button>
                 {bmrRecorded && <p className="text-xs text-success">Rappels, notes et éventuelles morts ont été reportés dans le grimoire.</p>}
                 {hasUsedBmrPower && <p className="text-xs text-warn">Ce pouvoir unique a déjà été utilisé pendant cette partie.</p>}
@@ -992,34 +1014,16 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
       </div>
     )}
     {showCourtierRolePicker && (
-      <div className="fixed inset-0 z-50 bg-surface-0 text-ink-0 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Choix du rôle de la Courtisane">
-        <div className="min-h-full max-w-4xl mx-auto px-6 py-10 flex flex-col">
-          <div className="text-center mb-8">
-            <p className="text-xs uppercase tracking-[0.2em] text-accent">Courtisane</p>
-            <h2 className="text-3xl font-semibold mt-2">Choisissez un personnage</h2>
-            <p className="text-ink-2 mt-3">Touchez le rôle que vous souhaitez rendre ivre.</p>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {getCharactersForScript(game.scriptId).map((character) => (
-              <button
-                key={character.id}
-                type="button"
-                onClick={() => {
-                  setBmrCharacterChoice(character.id)
-                  setShowCourtierRolePicker(false)
-                }}
-                className="min-h-36 rounded-2xl border border-border bg-surface-1 px-3 py-4 flex flex-col items-center justify-center gap-3 hover:border-accent hover:bg-accent/10 active:scale-[0.98] transition"
-              >
-                <RoleIcon characterId={character.id} nameFr={character.nameFr} size={56} />
-                <span className="text-base font-semibold text-center">{character.nameFr}</span>
-              </button>
-            ))}
-          </div>
-          <Button variant="ghost" className="self-center mt-8" onClick={() => setShowCourtierRolePicker(false)}>
-            Retour au MJ
-          </Button>
-        </div>
-      </div>
+      <CharacterPickerOverlay
+        title="Courtisane"
+        subtitle="Choisissez un personnage — touchez le rôle que vous souhaitez rendre ivre."
+        characters={getCharactersForScript(game.scriptId)}
+        onSelect={(characterId) => {
+          setBmrCharacterChoice(characterId)
+          setShowCourtierRolePicker(false)
+        }}
+        onClose={() => setShowCourtierRolePicker(false)}
+      />
     )}
     {showDemonRole && demonInfoPlayer && demonInfoCharacter && (
       <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center gap-8 p-6 text-center" onClick={() => setShowDemonRole(false)} role="dialog" aria-modal="true" aria-label="Personnage du Démon">
