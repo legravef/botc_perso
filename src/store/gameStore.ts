@@ -714,6 +714,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (startIndex === -1) return
       const eventIndex = history.length - 1 - startIndex
       const target = history[eventIndex]
+      if (!target) return
       const newHistory = history.slice(0, eventIndex)
       set({ game: target.previousState, history: newHistory, canUndo: newHistory.length > 0 })
       saveGameToStorage(target.previousState, newHistory)

@@ -204,7 +204,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   // automatiquement comme successeur. Avec plusieurs Sbires vivants, le Conteur doit trancher.
   function handleImpTargetSelect(playerId: string) {
     setImpTargetId(playerId)
-    setImpSuccessorId(playerId === actingPlayerId && impSuccessors.length === 1 ? impSuccessors[0].id : '')
+    setImpSuccessorId(playerId === actingPlayerId && impSuccessors.length === 1 ? impSuccessors[0]?.id ?? '' : '')
   }
 
   const requiresBluffConfirmation = (step?.kind === 'demon-info' || step?.characterId === 'lunatic') && (step.bluffCharacterIds?.length ?? 0) > 0
@@ -721,7 +721,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                         </select>
                       </>
                     ) : impSuccessors.length === 1 ? (
-                      <p className="text-xs text-success">Successeur automatique — seul Sbire vivant : {impSuccessors[0].name} devient le nouveau Diablotin.</p>
+                      <p className="text-xs text-success">Successeur automatique — seul Sbire vivant : {impSuccessors[0]?.name} devient le nouveau Diablotin.</p>
                     ) : (
                       <p className="text-xs text-danger mt-2">Aucun Sbire vivant ne peut reprendre le rôle.</p>
                     )}
