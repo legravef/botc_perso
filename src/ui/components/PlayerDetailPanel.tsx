@@ -23,7 +23,7 @@ interface PlayerDetailPanelProps {
 }
 
 export function PlayerDetailPanel({ game, player, onClose }: PlayerDetailPanelProps) {
-  const killPlayer = useGameStore((s) => s.killPlayer)
+  const declareDeath = useGameStore((s) => s.declareDeath)
   const revivePlayer = useGameStore((s) => s.revivePlayer)
   const toggleGhostVote = useGameStore((s) => s.toggleGhostVote)
   const setPlayerCharacter = useGameStore((s) => s.setPlayerCharacter)
@@ -114,7 +114,7 @@ export function PlayerDetailPanel({ game, player, onClose }: PlayerDetailPanelPr
 
           <section className="flex gap-2">
             {player.alive ? (
-              <Button variant="danger" className="flex-1" onClick={() => killPlayer(player.id)}>
+              <Button variant="danger" className="flex-1" onClick={() => declareDeath(player.id)}>
                 Déclarer mort
               </Button>
             ) : (

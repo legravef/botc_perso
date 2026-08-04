@@ -914,7 +914,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
         )}
       </main>
 
-      <footer className="px-6 py-4 border-t border-border flex justify-between gap-3">
+      <footer className="px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-border flex justify-between gap-3">
         <Button variant="ghost" disabled={index === 0} onClick={handlePrevious}>
           Précédent
         </Button>

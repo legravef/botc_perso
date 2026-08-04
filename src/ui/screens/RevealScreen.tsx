@@ -165,7 +165,7 @@ export function RevealScreen() {
         )}
       </main>
 
-      <footer className="px-6 py-4 border-t border-border flex justify-end">
+      <footer className="px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-border flex justify-end">
         <Button variant="primary" onClick={() => setPhase('night.first')}>
           Tous les joueurs ont vu leur rôle — commencer la première nuit
         </Button>

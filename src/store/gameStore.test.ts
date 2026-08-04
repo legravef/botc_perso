@@ -657,6 +657,22 @@ describe('useGameStore — Trouble Brewing : Soldat et Confidente', () => {
     expect(scarletWoman?.alignment).toBe('evil')
   })
 
+  it('declareDeath applique aussi la succession de la Confidente (mort du Démon hors des flux guidés, ex. tir du Mercenaire)', () => {
+    useGameStore.getState().createGame('trouble-brewing')
+    const players = Array.from({ length: 6 }, (_, i) => createPlayer(`J${i}`, i))
+    useGameStore.getState().setPlayers(players)
+    useGameStore.getState().setPlayerCharacter(players[0]!.id, 'imp')
+    useGameStore.getState().setPlayerCharacter(players[1]!.id, 'scarlet-woman')
+
+    useGameStore.getState().declareDeath(players[0]!.id)
+
+    const game = useGameStore.getState().game!
+    expect(game.players.find((p) => p.id === players[0]!.id)?.alive).toBe(false)
+    const scarletWoman = game.players.find((p) => p.id === players[1]!.id)
+    expect(scarletWoman?.realCharacterId).toBe('imp')
+    expect(scarletWoman?.alignment).toBe('evil')
+  })
+
   it('la Confidente ne devient pas Démon si moins de 5 joueurs restent vivants', () => {
     useGameStore.getState().createGame('trouble-brewing')
     const players = Array.from({ length: 4 }, (_, i) => createPlayer(`J${i}`, i))

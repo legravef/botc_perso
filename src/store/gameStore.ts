@@ -223,6 +223,10 @@ interface GameStore {
   endGame: (info: Pick<GameEndInfo, 'winner' | 'reason'>) => void
 
   killPlayer: (playerId: string) => void
+  /** Déclare un joueur mort manuellement depuis le grimoire (ex. tir du Mercenaire visant le
+   * Démon en journée, ou toute autre mort non couverte par les flux guidés d'exécution/de nuit).
+   * Applique la succession de la Confidente si c'est le Démon qui vient de mourir. */
+  declareDeath: (playerId: string) => void
   revivePlayer: (playerId: string) => void
   toggleGhostVote: (playerId: string) => void
   setPlayerCharacter: (playerId: string, characterId: string) => void
@@ -600,6 +604,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       })),
 
     killPlayer: (playerId) => updatePlayer(playerId, (p) => ({ ...p, alive: false }), { targetIds: [playerId] }),
+
+    declareDeath: (playerId) =>
+      commit('player.updated', (g) => {
+        const beforePlayers = g.players
+        const afterPlayers = g.players.map((p) => (p.id === playerId ? { ...p, alive: false } : p))
+        return { ...g, players: applyScarletWomanSuccession(g.scriptId, beforePlayers, afterPlayers) }
+      }, { targetIds: [playerId] }),
 
     revivePlayer: (playerId) => updatePlayer(playerId, (p) => ({ ...p, alive: true }), { targetIds: [playerId] }),
 

@@ -37,7 +37,7 @@ export function Screen({ title, subtitle, onBack, headerActions, children, foote
       </header>
       <main className="flex-1 overflow-y-auto px-6 py-6">{children}</main>
       {footer && (
-        <footer className="px-6 py-4 border-t border-border flex justify-end gap-3">{footer}</footer>
+        <footer className="px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-border flex justify-end gap-3">{footer}</footer>
       )}
     </div>
   )
