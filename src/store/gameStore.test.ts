@@ -213,6 +213,42 @@ describe('useGameStore — préparation et transitions nuit/jour', () => {
     expect(game?.nightNumber).toBe(2)
   })
 
+  it('cancelNight annule toute la nuit en cours (même après plusieurs actions) et revient au jour précédent', () => {
+    useGameStore.getState().createGame()
+    useGameStore.getState().setPhase('night.first')
+    useGameStore.getState().completeNight() // jour 1 / nuit 1
+    useGameStore.getState().startNextNight() // nuit 2 (night.other)
+
+    useGameStore.getState().addNote('joueur-inexistant', 'Diablotin : se choisit lui-même.', 'power-used')
+    useGameStore.getState().killPlayer('joueur-inexistant')
+
+    useGameStore.getState().cancelNight()
+
+    const game = useGameStore.getState().game
+    expect(game?.phase).toBe('day.discussion')
+    expect(game?.dayNumber).toBe(1)
+    expect(game?.nightNumber).toBe(1)
+  })
+
+  it('cancelNight depuis la première nuit revient à la phase précédant son déclenchement', () => {
+    useGameStore.getState().createGame()
+    useGameStore.getState().setPhase('night.first')
+    useGameStore.getState().cancelNight()
+
+    expect(useGameStore.getState().game?.phase).toBe('setup.players')
+  })
+
+  it('cancelNight ne fait rien hors phase de nuit', () => {
+    useGameStore.getState().createGame()
+    useGameStore.getState().setPhase('night.first')
+    useGameStore.getState().completeNight()
+    const before = useGameStore.getState().game
+
+    useGameStore.getState().cancelNight()
+
+    expect(useGameStore.getState().game).toBe(before)
+  })
+
   it("met à jour perceivedCharacterId de l'Ivrogne quand son personnage cru est choisi en préparation", () => {
     useGameStore.getState().createGame()
     const players = Array.from({ length: 9 }, (_, i) => createPlayer(`Joueur ${i + 1}`, i))

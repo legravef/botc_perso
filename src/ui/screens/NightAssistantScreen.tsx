@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useGameStore } from '@/store'
 import { generateNightSteps } from '@/engine'
 import { getCharacterById, getCharactersForScript } from '@/data'
@@ -49,6 +49,7 @@ const BMR_TARGET_REMINDERS: Record<string, string> = {
 export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const game = useGameStore((s) => s.game)
   const completeNight = useGameStore((s) => s.completeNight)
+  const cancelNight = useGameStore((s) => s.cancelNight)
   const applyNightlyReminder = useGameStore((s) => s.applyNightlyReminder)
   const addReminder = useGameStore((s) => s.addReminder)
   const addNote = useGameStore((s) => s.addNote)
@@ -67,6 +68,11 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const setGossipKillDue = useGameStore((s) => s.setGossipKillDue)
   const setMoonchildTarget = useGameStore((s) => s.setMoonchildTarget)
   const [index, setIndex] = useState(0)
+  // Le starpass du Diablotin change le rôle du successeur en pleine nuit : `steps` se recalcule
+  // aussitôt et raccourcit (l'ancienne étape du successeur disparaît), ce qui décale `index`. On
+  // recale `index` nous-mêmes juste après (voir recordImpKill) et on pose ce drapeau pour que
+  // l'effet de reset ci-dessous n'efface pas la confirmation qu'on vient d'enregistrer.
+  const skipNextStepResetRef = useRef(false)
   const [targetId, setTargetId] = useState('')
   const [showReveal, setShowReveal] = useState(false)
   const [showDemonRole, setShowDemonRole] = useState(false)
@@ -85,11 +91,16 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [bmrInfoResult, setBmrInfoResult] = useState<string | null>(null)
   const [specialKillTargetId, setSpecialKillTargetId] = useState('')
   const [showNightSummary, setShowNightSummary] = useState(false)
+  const [confirmingCancelNight, setConfirmingCancelNight] = useState(false)
 
   const nightType = game?.phase === 'night.first' ? 'first' : 'other'
   const steps = useMemo(() => (game ? generateNightSteps(game, nightType) : []), [game, nightType])
 
   useEffect(() => {
+    if (skipNextStepResetRef.current) {
+      skipNextStepResetRef.current = false
+      return
+    }
     setTargetId('')
     setShowReveal(false)
     setShowDemonRole(false)
@@ -188,6 +199,13 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     const character = player.realCharacterId ? getCharacterById(game.scriptId, player.realCharacterId) : undefined
     return player.alive && player.id !== actingPlayerId && character?.category === 'minion'
   })
+
+  // S'il ne reste qu'un seul Sbire vivant, il n'y a rien à choisir : on le désigne
+  // automatiquement comme successeur. Avec plusieurs Sbires vivants, le Conteur doit trancher.
+  function handleImpTargetSelect(playerId: string) {
+    setImpTargetId(playerId)
+    setImpSuccessorId(playerId === actingPlayerId && impSuccessors.length === 1 ? impSuccessors[0].id : '')
+  }
 
   const requiresBluffConfirmation = (step?.kind === 'demon-info' || step?.characterId === 'lunatic') && (step.bluffCharacterIds?.length ?? 0) > 0
   const canAdvance = !isImpKillAction || bmrRecorded
@@ -394,6 +412,19 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
       killPlayer(actingPlayerId)
       const successor = game.players.find((player) => player.id === impSuccessorId)
       addNote(actingPlayerId, `Diablotin : se choisit lui-même. ${successor?.name ?? 'Un Sbire'} devient le nouveau Diablotin.`, 'power-used')
+      setNightOutcome(`${successor?.name ?? 'Le Sbire choisi'} devient le nouveau Diablotin et ne tue pas une seconde fois cette nuit.`)
+      // Le changement de rôle raccourcit/réordonne `steps` immédiatement (voir plus haut) : on
+      // recale `index` sur la nouvelle étape "imp", désormais tenue par le successeur, pour ne
+      // pas perdre la position en cours de nuit et laisser le Conteur enchaîner normalement.
+      const updatedGame = useGameStore.getState().game
+      if (updatedGame) {
+        const newSteps = generateNightSteps(updatedGame, nightType)
+        const newIndex = newSteps.findIndex((s) => s.characterId === 'imp' && s.playerIds.includes(impSuccessorId))
+        if (newIndex !== -1) {
+          skipNextStepResetRef.current = true
+          setIndex(newIndex)
+        }
+      }
     } else {
       resolveNightDeaths([impTargetId], 'imp')
       addNote(actingPlayerId, `Diablotin : cible ${target.name}.`, 'power-used')
@@ -478,6 +509,21 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant={confirmingCancelNight ? 'danger' : 'ghost'}
+            onClick={() => {
+              if (confirmingCancelNight) {
+                cancelNight()
+                setConfirmingCancelNight(false)
+              } else {
+                setConfirmingCancelNight(true)
+              }
+            }}
+            onBlur={() => setConfirmingCancelNight(false)}
+            title="Annule toutes les actions de cette nuit et revient à l'état d'avant son début."
+          >
+            {confirmingCancelNight ? 'Confirmer : annuler la nuit ?' : 'Annuler la nuit'}
+          </Button>
           <Button variant="ghost" onClick={onOpenGrimoire}>Grimoire</Button>
         </div>
       </header>
@@ -647,10 +693,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                 </div>
                 <select
                   value={impTargetId}
-                  onChange={(e) => {
-                    setImpTargetId(e.target.value)
-                    setImpSuccessorId('')
-                  }}
+                  onChange={(e) => handleImpTargetSelect(e.target.value)}
                   disabled={bmrRecorded}
                   className="hidden"
                 >
@@ -663,18 +706,25 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                   players={game.players.filter((player) => player.alive)}
                   selectedIds={impTargetId ? [impTargetId] : []}
                   disabled={bmrRecorded}
-                  onSelect={(playerId) => { setImpTargetId(playerId); setImpSuccessorId('') }}
+                  onSelect={handleImpTargetSelect}
                   getLabel={(player) => `${player.name}${player.id === actingPlayerId ? ' (vous-même)' : ''}`}
                 />
                 {impTargetId === actingPlayerId && (
                   <div>
-                    <label className="block text-xs text-ink-2 mb-1">Sbire devenant le nouveau Diablotin</label>
-                    <PlayerChoiceGrid players={impSuccessors} selectedIds={impSuccessorId ? [impSuccessorId] : []} disabled={bmrRecorded} onSelect={setImpSuccessorId} />
-                    <select value={impSuccessorId} onChange={(e) => setImpSuccessorId(e.target.value)} disabled={bmrRecorded} className="hidden">
-                      <option value="">— Choisir un Sbire vivant —</option>
-                      {impSuccessors.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
-                    </select>
-                    {impSuccessors.length === 0 && <p className="text-xs text-danger mt-2">Aucun Sbire vivant ne peut reprendre le rôle.</p>}
+                    {impSuccessors.length > 1 ? (
+                      <>
+                        <label className="block text-xs text-ink-2 mb-1">Sbire devenant le nouveau Diablotin</label>
+                        <PlayerChoiceGrid players={impSuccessors} selectedIds={impSuccessorId ? [impSuccessorId] : []} disabled={bmrRecorded} onSelect={setImpSuccessorId} />
+                        <select value={impSuccessorId} onChange={(e) => setImpSuccessorId(e.target.value)} disabled={bmrRecorded} className="hidden">
+                          <option value="">— Choisir un Sbire vivant —</option>
+                          {impSuccessors.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                        </select>
+                      </>
+                    ) : impSuccessors.length === 1 ? (
+                      <p className="text-xs text-success">Successeur automatique — seul Sbire vivant : {impSuccessors[0].name} devient le nouveau Diablotin.</p>
+                    ) : (
+                      <p className="text-xs text-danger mt-2">Aucun Sbire vivant ne peut reprendre le rôle.</p>
+                    )}
                   </div>
                 )}
                 <Button

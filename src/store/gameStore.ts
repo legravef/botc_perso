@@ -250,6 +250,8 @@ interface GameStore {
   undo: () => void
   /** Vide l'historique (perte définitive de la capacité d'annuler) sans toucher à l'état actuel de la partie. */
   clearHistory: () => void
+  /** Annule en un clic toute la nuit en cours (quel que soit le nombre d'actions déjà enregistrées) et revient à l'état d'avant le début de cette nuit. */
+  cancelNight: () => void
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -696,6 +698,25 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!result) return
       set({ game: result.state, history: result.history, canUndo: result.history.length > 0 })
       saveGameToStorage(result.state, result.history)
+      get().refreshSavedGames()
+    },
+
+    cancelNight: () => {
+      const { history } = get()
+      const current = get().game
+      if (!current || !current.phase.startsWith('night.')) return
+      // Cherche, en partant de la fin, le dernier événement qui a fait basculer la partie en
+      // nuit ('night.first' ou 'night.other') : son `previousState` est l'état exact d'avant
+      // le début de cette nuit (jour précédent, ou écran de révélation pour la nuit 1).
+      const startIndex = [...history].reverse().findIndex(
+        (event) => event.type === 'phase.changed' && (event.resultingState.phase === 'night.first' || event.resultingState.phase === 'night.other'),
+      )
+      if (startIndex === -1) return
+      const eventIndex = history.length - 1 - startIndex
+      const target = history[eventIndex]
+      const newHistory = history.slice(0, eventIndex)
+      set({ game: target.previousState, history: newHistory, canUndo: newHistory.length > 0 })
+      saveGameToStorage(target.previousState, newHistory)
       get().refreshSavedGames()
     },
 
