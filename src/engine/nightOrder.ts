@@ -286,6 +286,9 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
     if (character.id === 'undertaker' && !game.lastExecutedPlayerId) continue
     const player = findAlivePlayer(character.id)
     if (!player) continue
+    // Pouvoir "une fois par partie" (Professeur, Assassin, Courtisane...) déjà utilisé cette
+    // partie : ne plus réveiller ce joueur, il n'y a plus rien à faire pour lui.
+    if (character.actionFrequency === 'once-per-game' && player.notes.some((note) => note.text.includes(`[BMR:${character.id}]`))) continue
     if (nightType === 'first' && character.id === 'lunatic') {
       const believedDemon = game.preparation.lunaticBelievedDemonId
         ? getCharacterById(game.scriptId, game.preparation.lunaticBelievedDemonId)

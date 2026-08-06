@@ -62,3 +62,51 @@ describe('NightAssistantScreen — starpass du Diablotin', () => {
     expect(footer).toBeEnabled()
   })
 })
+
+describe('NightAssistantScreen — Bad Moon Rising : Professeur', () => {
+  it('la résurrection par le Professeur survit à la fin de la nuit (Nina doit être vivante en journée)', () => {
+    const [paul, nina] = ['Paul', 'Nina'].map((name, i) => createPlayer(name, i))
+
+    useGameStore.getState().createGame('bad-moon-rising')
+    useGameStore.getState().setPlayers([paul!, nina!])
+    useGameStore.getState().setPlayerCharacter(paul!.id, 'professor')
+    useGameStore.getState().setPlayerCharacter(nina!.id, 'gambler')
+    // Nina est déjà morte (ex. mauvaise annonce du Parieur une nuit précédente).
+    useGameStore.getState().killPlayer(nina!.id)
+    useGameStore.getState().setPhase('night.other')
+
+    render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+
+    expect(screen.getByText('Professeur')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: nina!.name }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer dans le grimoire' }))
+
+    expect(useGameStore.getState().game?.players.find((p) => p.id === nina!.id)?.alive).toBe(true)
+
+    useGameStore.getState().completeNight()
+
+    const revivedNina = useGameStore.getState().game?.players.find((p) => p.id === nina!.id)
+    expect(revivedNina?.alive).toBe(true)
+  })
+
+  it("ne redemande plus de réveiller le Professeur une fois son pouvoir unique utilisé", () => {
+    const [paul, nina] = ['Paul', 'Nina'].map((name, i) => createPlayer(name, i))
+
+    useGameStore.getState().createGame('bad-moon-rising')
+    useGameStore.getState().setPlayers([paul!, nina!])
+    useGameStore.getState().setPlayerCharacter(paul!.id, 'professor')
+    useGameStore.getState().setPlayerCharacter(nina!.id, 'gambler')
+    useGameStore.getState().killPlayer(nina!.id)
+    useGameStore.getState().setPhase('night.other')
+
+    render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: nina!.name }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer dans le grimoire' }))
+
+    useGameStore.getState().completeNight()
+    useGameStore.getState().startNextNight()
+
+    // Nuit suivante : le pouvoir a déjà été utilisé, il n'y a plus rien à faire pour le Professeur.
+    expect(screen.queryByText('Professeur')).not.toBeInTheDocument()
+  })
+})
