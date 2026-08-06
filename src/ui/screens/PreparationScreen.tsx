@@ -212,7 +212,7 @@ export function PreparationScreen() {
                 setPreparation({ fortuneTellerRedHerringPlayerId: playerId })
                 // Pose (ou retire) un rappel visible en permanence sur le grimoire, pour ne
                 // jamais oublier le leurre en cours de partie — pas seulement dans l'étape de nuit.
-                applyNightlyReminder('fortune-teller', 'Leurre (Voyante)', playerId)
+                applyNightlyReminder('fortune-teller', 'Leurre de la Voyante', playerId)
               }}
             />
           </div>

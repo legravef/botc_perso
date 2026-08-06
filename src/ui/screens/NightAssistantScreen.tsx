@@ -500,6 +500,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     : undefined
   const undertakerActualCharacterId = undertakerExecutedPlayer?.realCharacterId
   const undertakerRevealCharacterId = undertakerShownCharacterId || undertakerActualCharacterId
+  const undertakerCanChooseShownRole = step?.characterId === 'undertaker' && (step.isPoisoned || step.isSimulated)
   const undertakerPresentCharacters = Array.from(new Set(game.players
     .map((player) => player.realCharacterId)
     .filter((characterId): characterId is string => Boolean(characterId))))
@@ -692,10 +693,10 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
               </div>
             )}
 
-            {step?.characterId === 'undertaker' && step.isPoisoned && undertakerRevealCharacterId && (
+            {undertakerCanChooseShownRole && undertakerRevealCharacterId && (
               <div className="bg-danger/10 border border-danger/40 rounded-lg p-4 flex flex-col gap-3">
                 <div>
-                  <p className="text-xs text-danger font-medium uppercase tracking-wide">Croque-mort ivre ou empoisonné</p>
+                  <p className="text-xs text-danger font-medium uppercase tracking-wide">Croque-mort : information libre du Conteur</p>
                   <p className="text-sm">Choisissez le rôle présent dans cette partie à lui montrer. Le rôle réel reste sélectionné comme repère.</p>
                 </div>
                 <Button variant="secondary" className="self-start" onClick={() => setShowUndertakerRolePicker(true)}>

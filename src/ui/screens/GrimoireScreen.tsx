@@ -11,6 +11,10 @@ import { Button } from '../components/Button'
 import { PlayerDetailPanel } from '../components/PlayerDetailPanel'
 import { RoleIcon } from '../components/RoleIcon'
 
+function displayReminderLabel(label: string) {
+  return label === 'Leurre (Voyante)' ? 'Leurre de la Voyante' : label
+}
+
 const GRIMOIRE_STARS = [
   { top: 6, left: 5 },
   { top: 12, left: 18 },
@@ -301,10 +305,10 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
                           className={`text-[9px] leading-none rounded px-1 py-0.5 truncate max-w-full ${
                             recognized ? recognized.className : 'bg-warn/20 text-warn'
                           }`}
-                          title={reminder.label}
+                          title={displayReminderLabel(reminder.label)}
                         >
                           {recognized && `${recognized.icon} `}
-                          {reminder.label}
+                          {displayReminderLabel(reminder.label)}
                         </span>
                       )
                     })}
@@ -339,7 +343,7 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
                     <span className="min-w-0 truncate font-medium">{source?.name ?? reminder.sourceCharacterId}</span>
                     <span className="text-accent">→</span>
                     <span className="min-w-0 truncate">{target.name}</span>
-                    <span className="ml-auto text-ink-2 truncate max-w-20" title={reminder.label}>{reminder.label}</span>
+                    <span className="ml-auto text-ink-2 truncate max-w-20" title={displayReminderLabel(reminder.label)}>{displayReminderLabel(reminder.label)}</span>
                   </div>
                 ))}
               </div>
