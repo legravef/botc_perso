@@ -9,6 +9,32 @@ beforeEach(() => {
   useGameStore.setState({ game: null, history: [], savedGames: [], canUndo: false })
 })
 
+describe('NightAssistantScreen Mayor', () => {
+  it('allows the Storyteller to redirect an Imp kill to another living player', () => {
+    const [arthur, nina, marc] = ['Arthur', 'Nina', 'Marc'].map((name, i) => createPlayer(name, i))
+
+    useGameStore.getState().createGame('trouble-brewing')
+    useGameStore.getState().setPlayers([arthur!, nina!, marc!])
+    useGameStore.getState().setPlayerCharacter(arthur!.id, 'imp')
+    useGameStore.getState().setPlayerCharacter(nina!.id, 'poisoner')
+    useGameStore.getState().setPlayerCharacter(marc!.id, 'mayor')
+    useGameStore.getState().setPhase('night.other')
+
+    render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
+    expect(screen.getByText('Diablotin')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: marc!.name }))
+    expect(screen.getByText(/Le Maire peut rediriger/)).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: nina!.name })[1]!)
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la victime' }))
+
+    const players = useGameStore.getState().game!.players
+    expect(players.find((player) => player.id === marc!.id)?.alive).toBe(true)
+    expect(players.find((player) => player.id === nina!.id)?.alive).toBe(false)
+  })
+})
+
 /**
  * Reproduit le bug rapporté : Arthur (Diablotin) se cible lui-même, Nina — Empoisonneuse,
  * qui a donc déjà agi plus tôt cette même nuit — devient la nouvelle Diablotin. La liste des

@@ -16,7 +16,9 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const startNextNight = useGameStore((s) => s.startNextNight)
   const resolveExecution = useGameStore((s) => s.resolveExecution)
   const endGame = useGameStore((s) => s.endGame)
+  const declareDeath = useGameStore((s) => s.declareDeath)
   const addReminder = useGameStore((s) => s.addReminder)
+  const addNote = useGameStore((s) => s.addNote)
   const setGossipKillDue = useGameStore((s) => s.setGossipKillDue)
   const setMoonchildTarget = useGameStore((s) => s.setMoonchildTarget)
   const history = useGameStore((s) => s.history)
@@ -30,6 +32,12 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const [showNoExecutionConfirm, setShowNoExecutionConfirm] = useState(false)
   const [gossipWasTrue, setGossipWasTrue] = useState(false)
   const [moonchildTargetId, setMoonchildTargetId] = useState('')
+  const [virginId, setVirginId] = useState('')
+  const [virginNominatorId, setVirginNominatorId] = useState('')
+  const [slayerId, setSlayerId] = useState('')
+  const [slayerTargetId, setSlayerTargetId] = useState('')
+  const [dayActionOutcome, setDayActionOutcome] = useState<string | null>(null)
+  const [forcedExecutionPlayerId, setForcedExecutionPlayerId] = useState('')
 
   if (!game) return null
 
@@ -53,6 +61,47 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const moonchildNightDeath = game.scriptId === 'bad-moon-rising' && !!moonchildDeadPlayer
     && (game.nightLog ?? []).some((entry) => entry.outcome === 'dead' && entry.targetName === moonchildDeadPlayer.name)
   const showMoonchildChoice = game.scriptId === 'bad-moon-rising' && (executedCandidate?.realCharacterId === 'moonchild' || moonchildNightDeath)
+  const isImpaired = (playerId: string) => game.players.find((player) => player.id === playerId)?.reminders.some((reminder) =>
+    reminder.label.startsWith('Empoisonné') || reminder.label.startsWith('Ivre'),
+  ) ?? false
+  const availableVirgins = game.scriptId === 'trouble-brewing'
+    ? livingPlayers.filter((player) => player.realCharacterId === 'virgin' && !isImpaired(player.id) && !player.reminders.some((reminder) => reminder.sourceCharacterId === 'virgin'))
+    : []
+  const eligibleVirginNominators = livingPlayers.filter((player) => {
+    const character = player.realCharacterId ? getCharacterById(game.scriptId, player.realCharacterId) : undefined
+    return character?.category === 'townsfolk'
+  })
+  const availableSlayers = game.scriptId === 'trouble-brewing'
+    ? livingPlayers.filter((player) => player.realCharacterId === 'slayer' && !player.reminders.some((reminder) => reminder.sourceCharacterId === 'slayer'))
+    : []
+
+  function resolveVirginNomination() {
+    if (!virginId || !virginNominatorId) return
+    if (!game) return
+    addReminder(virginId, 'Pouvoir utilisé (Vierge)', 'virgin')
+    addNote(virginId, `Vierge : ${game.players.find((player) => player.id === virginNominatorId)?.name ?? 'un Villageois'} l'a nommée ; exécution immédiate préparée.`, 'power-used')
+    setExecutedPlayerId(virginNominatorId)
+    setForcedExecutionPlayerId(virginNominatorId)
+    setPacifistSaves(false)
+    setDayActionOutcome(`${game.players.find((player) => player.id === virginNominatorId)?.name} doit être exécuté(e) immédiatement : confirmez la résolution du jour ci-dessous.`)
+  }
+
+  function resolveSlayerShot() {
+    if (!slayerId || !slayerTargetId) return
+    if (!game) return
+    const target = game.players.find((player) => player.id === slayerTargetId)
+    const impaired = isImpaired(slayerId)
+    addReminder(slayerId, 'Tir utilisé (Chasseur)', 'slayer')
+    if (!impaired && target?.realCharacterId && getCharacterById(game.scriptId, target.realCharacterId)?.category === 'demon') {
+      declareDeath(slayerTargetId)
+      addNote(slayerId, `Chasseur : tire sur ${target.name}, qui est le Démon.`, 'power-used')
+      setDayActionOutcome(`${target.name} était le Démon et meurt du tir du Chasseur.`)
+    } else {
+      addNote(slayerId, `Chasseur : tire sur ${target?.name ?? 'un joueur'} sans effet.`, 'power-used')
+      setDayActionOutcome(impaired ? 'Le Chasseur est ivre ou empoisonné : son tir est sans effet.' : `${target?.name ?? 'La cible'} n'est pas le Démon : le tir est sans effet.`)
+    }
+    setSlayerTargetId('')
+  }
 
   function handleConfirm() {
     if (!executedPlayerId) {
@@ -152,6 +201,33 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
         )}
         <p className="text-lg">Le jour se lève.</p>
 
+        {(availableVirgins.length > 0 || availableSlayers.length > 0 || dayActionOutcome) && (
+          <section className="bg-accent/10 border border-accent/35 rounded-2xl p-5 flex flex-col gap-4">
+            <div>
+              <h2 className="text-sm text-ink-2">Actions spéciales de journée</h2>
+              <p className="text-sm">Résolvez ici les pouvoirs qui interrompent une nomination ou une discussion.</p>
+            </div>
+            {availableVirgins.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-medium">Vierge â€” nomination par un Villageois</p>
+                <PlayerChoiceGrid players={availableVirgins} selectedIds={virginId ? [virginId] : []} onSelect={setVirginId} />
+                <p className="text-xs text-ink-2">Choisissez ensuite le Villageois qui vient de la nommer.</p>
+                <PlayerChoiceGrid players={eligibleVirginNominators} selectedIds={virginNominatorId ? [virginNominatorId] : []} onSelect={setVirginNominatorId} />
+                <Button variant="secondary" disabled={!virginId || !virginNominatorId} onClick={resolveVirginNomination}>Préparer l'exécution de la Vierge</Button>
+              </div>
+            )}
+            {availableSlayers.length > 0 && (
+              <div className="flex flex-col gap-2 border-t border-accent/25 pt-4">
+                <p className="text-sm font-medium">Chasseur â€” tir unique</p>
+                <PlayerChoiceGrid players={availableSlayers} selectedIds={slayerId ? [slayerId] : []} onSelect={setSlayerId} />
+                {slayerId && <PlayerChoiceGrid players={livingPlayers.filter((player) => player.id !== slayerId)} selectedIds={slayerTargetId ? [slayerTargetId] : []} onSelect={setSlayerTargetId} />}
+                <Button variant="secondary" disabled={!slayerId || !slayerTargetId} onClick={resolveSlayerShot}>Résoudre le tir du Chasseur</Button>
+              </div>
+            )}
+            {dayActionOutcome && <p className="text-sm text-success">{dayActionOutcome}</p>}
+          </section>
+        )}
+
         <section>
           <h2 className="text-sm text-ink-2 mb-2">Joueurs morts</h2>
           {deadPlayers.length > 0 ? (
@@ -184,10 +260,11 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
               </option>
             ))}
           </select>
-          <Button variant={executedPlayerId ? 'secondary' : 'primary'} className="self-start px-3 py-2 text-sm" onClick={() => { setExecutedPlayerId(NO_EXECUTION); setPacifistSaves(false) }}>
+          <Button variant={executedPlayerId ? 'secondary' : 'primary'} disabled={!!forcedExecutionPlayerId} className="self-start px-3 py-2 text-sm" onClick={() => { setExecutedPlayerId(NO_EXECUTION); setPacifistSaves(false) }}>
             Personne n'a été exécuté
           </Button>
-          <PlayerChoiceGrid players={livingPlayers} selectedIds={executedPlayerId ? [executedPlayerId] : []} onSelect={(id) => { setExecutedPlayerId(id); setPacifistSaves(false) }} />
+          <PlayerChoiceGrid players={livingPlayers} selectedIds={executedPlayerId ? [executedPlayerId] : []} disabled={!!forcedExecutionPlayerId} onSelect={(id) => { setExecutedPlayerId(id); setPacifistSaves(false) }} />
+          {forcedExecutionPlayerId && <p className="text-xs text-warn">Exécution imposée par la Vierge : elle ne peut pas être remplacée par un vote.</p>}
           {showPacifistChoice && (
             <div className="bg-warn/10 border border-warn/40 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
               <div>

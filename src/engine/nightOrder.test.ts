@@ -242,6 +242,18 @@ describe('generateNightSteps — Bad Moon Rising', () => {
     expect(steps.some((step) => step.characterId === 'grandmother')).toBe(true)
   })
 
+  it('réveille le Pukka dès la première nuit, car son pouvoir agit chaque nuit', () => {
+    const script = 'bad-moon-rising' as const
+    const players = ['pukka', 'mastermind', 'fool'].map((characterId, index) => {
+      const character = getCharacterById(script, characterId)!
+      return { ...createPlayer(`BMR ${index + 1}`, index), realCharacterId: characterId, alignment: character.team }
+    })
+    const game = makeGame({ scriptId: script, players })
+
+    const steps = generateNightSteps(game, 'first')
+    expect(steps.find((step) => step.characterId === 'pukka')?.playerIds).toEqual([game.players[0]!.id])
+  })
+
   it('réveille aussi Bras droit, Marin, Courtisane et Avocat du diable la première nuit (pas d’astérisque sur la feuille V3)', () => {
     const script = 'bad-moon-rising' as const
     const ids = ['grandmother', 'goon', 'sailor', 'courtier', 'devils-advocate', 'chambermaid', 'godfather', 'shabaloth']

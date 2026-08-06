@@ -533,6 +533,20 @@ describe('useGameStore — résolution centralisée des morts nocturnes', () => 
     expect(useGameStore.getState().game?.players.find((p) => p.id === p2.id)?.alive).toBe(true)
   })
 
+  it('l\'Herboriste ne protège aucun voisin si ses deux voisins vivants ne sont pas gentils', () => {
+    const teaLady = createPlayer('Hélène', 0)
+    const goodNeighbor = createPlayer('Gabin', 1)
+    const evilNeighbor = createPlayer('Éric', 2)
+    useGameStore.getState().createGame('bad-moon-rising')
+    useGameStore.getState().setPlayers([teaLady, goodNeighbor, evilNeighbor])
+    useGameStore.getState().setPlayerCharacter(teaLady.id, 'tea-lady')
+    useGameStore.getState().setPlayerCharacter(goodNeighbor.id, 'pacifist')
+    useGameStore.getState().setPlayerCharacter(evilNeighbor.id, 'zombuul')
+
+    useGameStore.getState().resolveNightDeaths([goodNeighbor.id], 'zombuul')
+    expect(useGameStore.getState().game?.players.find((player) => player.id === goodNeighbor.id)?.alive).toBe(false)
+  })
+
   it('le Marin n\'est immunisé la nuit que s\'il reste sobre', () => {
     useGameStore.getState().createGame('bad-moon-rising')
     const [sailor] = sevenPlayers() as [Player]

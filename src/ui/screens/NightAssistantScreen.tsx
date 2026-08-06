@@ -85,6 +85,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [bmrRecorded, setBmrRecorded] = useState(false)
   const [impTargetId, setImpTargetId] = useState('')
   const [impSuccessorId, setImpSuccessorId] = useState('')
+  const [mayorRedirectTargetId, setMayorRedirectTargetId] = useState('')
   const [nightOutcome, setNightOutcome] = useState<string | null>(null)
   const [roleRevealRequest, setRoleRevealRequest] = useState<{ actorId: string; title: string } | null>(null)
   const [roleRevealTargetId, setRoleRevealTargetId] = useState('')
@@ -114,6 +115,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setBmrRecorded(false)
     setImpTargetId('')
     setImpSuccessorId('')
+    setMayorRedirectTargetId('')
     setNightOutcome(null)
     setRoleRevealRequest(null)
     setRoleRevealTargetId('')
@@ -188,8 +190,15 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     return player.alive
   })
   const isImpKillAction = step?.characterId === 'imp' && !step.isSimulated
+  const impTarget = impTargetId ? game.players.find((player) => player.id === impTargetId) : undefined
+  const mayorCanRedirect = isImpKillAction && impTarget?.realCharacterId === 'mayor' && !impTarget.reminders.some((reminder) =>
+    reminder.label.startsWith('Empoisonné') || reminder.label.startsWith('Ivre'),
+  )
+  const mayorRedirectCandidates = mayorCanRedirect
+    ? game.players.filter((player) => player.alive && player.id !== impTargetId)
+    : []
   const selectedDemonTargetIds = isImpKillAction
-    ? (impTargetId ? [impTargetId] : [])
+    ? (mayorCanRedirect && mayorRedirectTargetId ? [mayorRedirectTargetId] : impTargetId ? [impTargetId] : [])
     : bmrCharacter?.category === 'demon'
       ? bmrTargetIds
       : []
@@ -207,6 +216,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   function handleImpTargetSelect(playerId: string) {
     setImpTargetId(playerId)
     setImpSuccessorId(playerId === actingPlayerId && impSuccessors.length === 1 ? impSuccessors[0]?.id ?? '' : '')
+    setMayorRedirectTargetId('')
   }
 
   const requiresBluffConfirmation = (step?.kind === 'demon-info' || step?.characterId === 'lunatic') && (step.bluffCharacterIds?.length ?? 0) > 0
@@ -428,10 +438,19 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
         }
       }
     } else {
-      resolveNightDeaths([impTargetId], 'imp')
-      addNote(actingPlayerId, `Diablotin : cible ${target.name}.`, 'power-used')
-      reportDemonOutcome([impTargetId], 'Diablotin')
-      queueDeathTriggeredReveal([impTargetId])
+      const deathTargetId = mayorCanRedirect && mayorRedirectTargetId ? mayorRedirectTargetId : impTargetId
+      const deathTarget = game.players.find((player) => player.id === deathTargetId)
+      if (!deathTarget) return
+      resolveNightDeaths([deathTargetId], 'imp')
+      addNote(
+        actingPlayerId,
+        mayorCanRedirect && mayorRedirectTargetId
+          ? `Diablotin : cible ${target.name}. Le Maire redirige la mort vers ${deathTarget.name}.`
+          : `Diablotin : cible ${target.name}.`,
+        'power-used',
+      )
+      reportDemonOutcome([deathTargetId], 'Diablotin')
+      queueDeathTriggeredReveal([deathTargetId])
       // La victime peut avoir déjà joué plus tôt dans la nuit. Sa disparition raccourcit alors
       // la file et peut laisser l'index courant hors limites : rester calé sur le Diablotin
       // permet de terminer proprement cette nuit sans perdre la validation de la victime.
@@ -761,6 +780,30 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                       <p className="text-xs text-success">Successeur automatique — seul Sbire vivant : {impSuccessors[0]?.name} devient le nouveau Diablotin.</p>
                     ) : (
                       <p className="text-xs text-danger mt-2">Aucun Sbire vivant ne peut reprendre le rôle.</p>
+                    )}
+                  </div>
+                )}
+                {mayorCanRedirect && (
+                  <div className="bg-accent/10 border border-accent/35 rounded-lg p-3 flex flex-col gap-2">
+                    <div>
+                      <p className="text-xs text-accent uppercase tracking-wide">Décision du Conteur â€” Maire</p>
+                      <p className="text-sm">Le Maire peut rediriger cette mort nocturne vers un autre joueur vivant.</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      disabled={bmrRecorded}
+                      onClick={() => setMayorRedirectTargetId('')}
+                    >
+                      Laisser mourir le Maire
+                    </Button>
+                    <PlayerChoiceGrid
+                      players={mayorRedirectCandidates}
+                      selectedIds={mayorRedirectTargetId ? [mayorRedirectTargetId] : []}
+                      disabled={bmrRecorded}
+                      onSelect={setMayorRedirectTargetId}
+                    />
+                    {mayorRedirectTargetId && (
+                      <p className="text-xs text-success">La mort sera redirigée vers {game.players.find((player) => player.id === mayorRedirectTargetId)?.name}.</p>
                     )}
                   </div>
                 )}

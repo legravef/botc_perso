@@ -82,7 +82,8 @@ function resolvePlayerDeathDetailed(
   const teaLady = allPlayers.find((p) => p.alive && p.realCharacterId === 'tea-lady' && !isPlayerDrunk(p))
   if (teaLady && player.alignment === 'good') {
     const neighbors = getLivingNeighbors(allPlayers, teaLady.id)
-    if (neighbors.left?.id === player.id || neighbors.right?.id === player.id) {
+    const bothNeighborsAreGood = neighbors.left?.alignment === 'good' && neighbors.right?.alignment === 'good'
+    if (bothNeighborsAreGood && (neighbors.left?.id === player.id || neighbors.right?.id === player.id)) {
       return { player, outcome: 'prevented', reason: 'protégé(e) par l’Herboriste (voisin gentil)' }
     }
   }
