@@ -2,7 +2,7 @@
 
 Outil communautaire non officiel, non affilié à The Pandemonium Institute ni à
 l'éditeur du jeu. Application web locale, sans backend, destinée à assister le
-Conteur pendant une partie en présentiel de Blood on the Clocktower — scénario
+Conteur pendant une partie en présentiel de Blood on the Clocktower — scénario 
 Trouble Brewing.
 
 Voir [ARCHITECTURE.md](./ARCHITECTURE.md) pour l'architecture technique, le
