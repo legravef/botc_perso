@@ -256,7 +256,7 @@ export const TROUBLE_BREWING_CHARACTERS: Character[] = [
       "Si le Gardien meurt pendant la nuit (typiquement tué par le Démon), il est immédiatement " +
       "réveillé pour choisir un joueur et apprendre son personnage réel avant la fin de la nuit.",
     firstNightOrder: null,
-    otherNightOrder: 5,
+    otherNightOrder: null,
     actionFrequency: 'on-death-trigger',
     selectionType: 'single-player',
     targetCount: 1,
@@ -571,7 +571,7 @@ export const TROUBLE_BREWING_CHARACTERS: Character[] = [
       "moment (Confidente incluse), celle-ci devient immédiatement le nouveau Démon, avec le même " +
       "pouvoir. Le changement n'est jamais annoncé publiquement.",
     firstNightOrder: null,
-    otherNightOrder: 3,
+    otherNightOrder: null,
     actionFrequency: 'on-death-trigger',
     selectionType: 'none',
     targetCount: 0,

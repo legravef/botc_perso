@@ -63,6 +63,58 @@ describe('NightAssistantScreen — starpass du Diablotin', () => {
   })
 })
 
+describe('NightAssistantScreen — Gardien', () => {
+  it('ne figure pas dans l’ordre régulier, mais se déclenche immédiatement après sa mort nocturne', () => {
+    const [arthur, nina, georges] = ['Arthur', 'Nina', 'Georges'].map((name, i) => createPlayer(name, i))
+
+    useGameStore.getState().createGame('trouble-brewing')
+    useGameStore.getState().setPlayers([arthur!, nina!, georges!])
+    useGameStore.getState().setPlayerCharacter(arthur!.id, 'imp')
+    useGameStore.getState().setPlayerCharacter(nina!.id, 'ravenkeeper')
+    useGameStore.getState().setPlayerCharacter(georges!.id, 'poisoner')
+    useGameStore.getState().setPhase('night.other')
+
+    render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+
+    // L'Empoisonneur joue, puis le Diablotin : le Gardien vivant n'est jamais une étape régulière.
+    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
+    expect(screen.getByText('Diablotin')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: nina!.name }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la victime' }))
+
+    expect(screen.getByText(`Gardien — ${nina!.name}`)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: arthur!.name }))
+    fireEvent.click(screen.getByRole('button', { name: /J.ai montré ce rôle/ }))
+    expect(screen.getByRole('button', { name: 'Terminer la nuit' })).toBeEnabled()
+  })
+})
+
+describe('NightAssistantScreen — Croque-mort ivre ou empoisonné', () => {
+  it('permet au Conteur de remplacer le rôle réel par le rôle mensonger à montrer', () => {
+    const [ugo, nina, paul] = ['Ugo', 'Nina', 'Paul'].map((name, i) => createPlayer(name, i))
+
+    useGameStore.getState().createGame('trouble-brewing')
+    useGameStore.getState().setPlayers([ugo!, nina!, paul!])
+    useGameStore.getState().setPlayerCharacter(ugo!.id, 'undertaker')
+    useGameStore.getState().setPlayerCharacter(nina!.id, 'baron')
+    useGameStore.getState().setPlayerCharacter(paul!.id, 'poisoner')
+    useGameStore.getState().killPlayer(nina!.id)
+    useGameStore.getState().addReminder(ugo!.id, 'Empoisonné (test)', 'poisoner')
+    const game = useGameStore.getState().game!
+    useGameStore.setState({ game: { ...game, lastExecutedPlayerId: nina!.id, phase: 'night.other' } })
+
+    render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
+    expect(screen.getByRole('heading', { name: 'Croque-mort' })).toBeInTheDocument()
+    expect(screen.getByText(/Choisissez le rôle à lui montrer/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Soldat' }))
+    expect(screen.getByRole('button', { name: 'Soldat' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Montrer directement sur l'écran/ })).toBeEnabled()
+  })
+})
+
 describe('NightAssistantScreen — Bad Moon Rising : Professeur', () => {
   it('la résurrection par le Professeur survit à la fin de la nuit (Nina doit être vivante en journée)', () => {
     const [paul, nina] = ['Paul', 'Nina'].map((name, i) => createPlayer(name, i))

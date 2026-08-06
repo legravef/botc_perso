@@ -75,6 +75,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const skipNextStepResetRef = useRef(false)
   const [targetId, setTargetId] = useState('')
   const [showReveal, setShowReveal] = useState(false)
+  const [undertakerShownCharacterId, setUndertakerShownCharacterId] = useState('')
   const [showDemonRole, setShowDemonRole] = useState(false)
   const [showGoonAlignment, setShowGoonAlignment] = useState(false)
   const [bmrTargetIds, setBmrTargetIds] = useState<string[]>([])
@@ -103,6 +104,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     }
     setTargetId('')
     setShowReveal(false)
+    setUndertakerShownCharacterId('')
     setShowDemonRole(false)
     setShowGoonAlignment(false)
     setBmrTargetIds([])
@@ -430,6 +432,18 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
       addNote(actingPlayerId, `Diablotin : cible ${target.name}.`, 'power-used')
       reportDemonOutcome([impTargetId], 'Diablotin')
       queueDeathTriggeredReveal([impTargetId])
+      // La victime peut avoir déjà joué plus tôt dans la nuit. Sa disparition raccourcit alors
+      // la file et peut laisser l'index courant hors limites : rester calé sur le Diablotin
+      // permet de terminer proprement cette nuit sans perdre la validation de la victime.
+      const updatedGame = useGameStore.getState().game
+      if (updatedGame) {
+        const newSteps = generateNightSteps(updatedGame, nightType)
+        const newIndex = newSteps.findIndex((s) => s.characterId === 'imp' && s.playerIds.includes(actingPlayerId))
+        if (newIndex !== -1) {
+          skipNextStepResetRef.current = true
+          setIndex(newIndex)
+        }
+      }
     }
     setBmrRecorded(true)
   }
@@ -460,7 +474,14 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     ? game.players.find((p) => p.id === step.redHerringPlayerId)?.name
     : undefined
 
-  const reveal = step?.displayReveal
+  const undertakerExecutedPlayer = step?.characterId === 'undertaker' && game.lastExecutedPlayerId
+    ? game.players.find((player) => player.id === game.lastExecutedPlayerId)
+    : undefined
+  const undertakerActualCharacterId = undertakerExecutedPlayer?.realCharacterId
+  const undertakerRevealCharacterId = undertakerShownCharacterId || undertakerActualCharacterId
+  const reveal = step?.characterId === 'undertaker' && undertakerRevealCharacterId
+    ? { kind: 'characters' as const, characterIds: [undertakerRevealCharacterId], title: 'Le personnage du joueur exécuté' }
+    : step?.displayReveal
   const revealPlayerA = reveal?.kind === 'pair' ? game.players.find((p) => p.id === reveal.playerAId) : undefined
   const revealPlayerB = reveal?.kind === 'pair' ? game.players.find((p) => p.id === reveal.playerBId) : undefined
   const revealCharacter = reveal?.kind === 'pair' ? getCharacterById(game.scriptId, reveal.characterId) : undefined
@@ -603,7 +624,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
             {step.resolvedInfo && (
               <div className={step.isPoisoned ? 'bg-danger/10 border border-danger/40 rounded-lg p-3' : 'bg-surface-2 border border-accent/40 rounded-lg p-3'}>
                 <p className={`text-xs mb-1 uppercase tracking-wide ${step.isPoisoned ? 'text-danger' : 'text-ink-2'}`}>
-                  {step.isPoisoned ? '⚠️ Empoisonné(e) — réponse libre au choix du Conteur' : 'Information privée à donner'}
+                  {step.isPoisoned ? '⚠️ Ivre ou empoisonné(e) — réponse libre au choix du Conteur' : 'Information privée à donner'}
                 </p>
                 <p className="text-base text-ink-0 font-medium">{step.resolvedInfo}</p>
               </div>
@@ -642,6 +663,20 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                     🎭 Leurre (faux positif) : {redHerringName}
                   </span>
                 )}
+              </div>
+            )}
+
+            {step?.characterId === 'undertaker' && step.isPoisoned && undertakerRevealCharacterId && (
+              <div className="bg-danger/10 border border-danger/40 rounded-lg p-4 flex flex-col gap-3">
+                <div>
+                  <p className="text-xs text-danger font-medium uppercase tracking-wide">Croque-mort ivre ou empoisonné</p>
+                  <p className="text-sm">Choisissez le rôle à lui montrer. Le rôle réel reste présélectionné comme repère pour le Conteur.</p>
+                </div>
+                <CharacterChoiceGrid
+                  characters={getCharactersForScript(game.scriptId)}
+                  selectedIds={[undertakerRevealCharacterId]}
+                  onSelect={setUndertakerShownCharacterId}
+                />
               </div>
             )}
 

@@ -49,7 +49,7 @@ const POISON_SENSITIVE_INFO_ROLES = new Set([
 ])
 
 function isPoisonedPlayer(player: Player): boolean {
-  return player.reminders.some((reminder) => reminder.label.startsWith('Empoisonné'))
+  return player.reminders.some((reminder) => reminder.label.startsWith('Empoisonné') || reminder.label.startsWith('Ivre'))
 }
 
 function buildPairStep(
