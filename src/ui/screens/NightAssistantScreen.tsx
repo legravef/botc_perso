@@ -99,6 +99,13 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const nightType = game?.phase === 'night.first' ? 'first' : 'other'
   const steps = useMemo(() => (game ? generateNightSteps(game, nightType) : []), [game, nightType])
 
+  // Une nouvelle nuit peut contenir moins d'étapes que la précédente. Si l'index courant est
+  // alors hors limites (par exemple après le Pukka de la première nuit), repartir au premier
+  // réveil plutôt que d'afficher une nuit vide.
+  useEffect(() => {
+    if (steps.length > 0 && index >= steps.length) setIndex(0)
+  }, [index, steps.length])
+
   useEffect(() => {
     if (skipNextStepResetRef.current) {
       skipNextStepResetRef.current = false
@@ -186,6 +193,8 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     !(nightType === 'first' && bmrCharacter.id === 'lunatic') && !isLunaticSimulation
   const bmrEligiblePlayers = game.players.filter((player) => {
     if (bmrCharacter?.id === 'professor') return !player.alive
+    // Le Parieur peut désigner n'importe quel joueur, y compris un mort.
+    if (bmrCharacter?.id === 'gambler') return true
     if (bmrCharacter?.id === 'exorcist') return player.alive && player.id !== game.lastExorcistTargetId
     if (bmrCharacter?.id === 'devils-advocate') return player.alive && player.id !== game.lastDevilsAdvocateTargetId
     if (bmrCharacter?.id === 'chambermaid') return player.alive && player.id !== actingPlayerId
@@ -222,7 +231,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   }
 
   const requiresBluffConfirmation = (step?.kind === 'demon-info' || step?.characterId === 'lunatic') && (step.bluffCharacterIds?.length ?? 0) > 0
-  const canAdvance = !isImpKillAction || bmrRecorded
+  const canAdvance = (!isImpKillAction && !isBmrAction) || bmrRecorded
 
   function handleNext() {
     if (!canAdvance) return
@@ -892,7 +901,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                         onClick={() => toggleBmrTarget(player.id)}
                         className={`min-h-12 rounded-xl border px-3 py-2 text-sm font-medium transition active:scale-[0.98] ${selected ? 'border-accent bg-accent/20 ring-1 ring-accent' : 'border-border bg-surface-1 hover:border-accent/60 hover:bg-surface-3'} disabled:opacity-45`}
                       >
-                        {player.name}
+                        {player.name}{!player.alive ? ' (mort)' : ''}
                       </button>
                     )
                   })}
