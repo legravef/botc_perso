@@ -601,8 +601,10 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
             )}
 
             {step.resolvedInfo && (
-              <div className="bg-surface-2 border border-accent/40 rounded-lg p-3">
-                <p className="text-xs text-ink-2 mb-1">Information privée à donner</p>
+              <div className={step.isPoisoned ? 'bg-danger/10 border border-danger/40 rounded-lg p-3' : 'bg-surface-2 border border-accent/40 rounded-lg p-3'}>
+                <p className={`text-xs mb-1 uppercase tracking-wide ${step.isPoisoned ? 'text-danger' : 'text-ink-2'}`}>
+                  {step.isPoisoned ? '⚠️ Empoisonné(e) — réponse libre au choix du Conteur' : 'Information privée à donner'}
+                </p>
                 <p className="text-base text-ink-0 font-medium">{step.resolvedInfo}</p>
               </div>
             )}

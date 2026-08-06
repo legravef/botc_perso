@@ -16,6 +16,9 @@ export interface NightStep {
   resolvedInfo?: string
   /** true si ce réveil est simulé pour l'Ivrogne (son pouvoir cru ne fonctionne pas réellement). */
   isSimulated?: boolean
+  /** true si le joueur est empoisonné : l'information calculée dans `resolvedInfo` est fournie à
+   * titre indicatif pour le Conteur, mais NE DOIT PAS être donnée telle quelle au joueur. */
+  isPoisoned?: boolean
   /** Étape "Information du Démon" : personnages de bluff à montrer explicitement (ne pas oublier). */
   bluffCharacterIds?: string[]
   /** Voyante : joueur bon qui déclenche toujours une réponse positive, en plus du vrai Démon. */
@@ -37,6 +40,16 @@ export interface NightStep {
 
 interface OrderedStep extends NightStep {
   orderValue: number
+}
+
+/** Rôles Trouble Brewing dont l'information donnée doit être fausse (au choix du Conteur) si le
+ * joueur est empoisonné, plutôt que la vraie valeur calculée par le moteur. */
+const POISON_SENSITIVE_INFO_ROLES = new Set([
+  'chef', 'empath', 'washerwoman', 'librarian', 'investigator', 'fortune-teller', 'undertaker',
+])
+
+function isPoisonedPlayer(player: Player): boolean {
+  return player.reminders.some((reminder) => reminder.label.startsWith('Empoisonné'))
 }
 
 function buildPairStep(
@@ -66,6 +79,19 @@ function buildPairStep(
 }
 
 function buildCharacterStep(game: Game, character: Character, player: Player): NightStep {
+  const step = buildCharacterStepRaw(game, character, player)
+  if (POISON_SENSITIVE_INFO_ROLES.has(character.id) && step.resolvedInfo && isPoisonedPlayer(player)) {
+    return {
+      ...step,
+      isPoisoned: true,
+      resolvedInfo: `${player.name} est empoisonné(e) : vous êtes libre de donner la réponse de votre choix (vraie, fausse ou approximative). Pour référence (Conteur uniquement) : ${step.resolvedInfo} — quel que soit votre choix, ne laissez rien deviner de l'empoisonnement.`,
+      displayReveal: undefined,
+    }
+  }
+  return step
+}
+
+function buildCharacterStepRaw(game: Game, character: Character, player: Player): NightStep {
   const base = {
     id: `${character.id}-${player.id}`,
     kind: 'character' as const,
@@ -201,11 +227,12 @@ function buildCharacterStep(game: Game, character: Character, player: Player): N
  */
 export function generateNightSteps(game: Game, nightType: NightType): NightStep[] {
   const characters = getCharactersForScript(game.scriptId)
-  const findPlayer = (characterId: string) => game.players.find((p) => p.realCharacterId === characterId)
-  const findAlivePlayer = (characterId: string) => {
-    const player = findPlayer(characterId)
-    return player?.alive ? player : undefined
-  }
+  // Un joueur mort garde son ancien `realCharacterId` (killPlayer ne le vide pas) : après un
+  // transfert de rôle en cours de partie (starpass du Diablotin, succession de la Confidente...),
+  // deux joueurs peuvent momentanément partager le même characterId — l'un mort, l'autre vivant
+  // et désormais le vrai titulaire. Il faut donc filtrer sur "vivant" AVANT de chercher une
+  // correspondance, jamais prendre le premier joueur trouvé puis vérifier s'il est vivant.
+  const findAlivePlayer = (characterId: string) => game.players.find((p) => p.realCharacterId === characterId && p.alive)
 
   const ordered: OrderedStep[] = []
 

@@ -146,6 +146,39 @@ describe('generateNightSteps — première nuit', () => {
     const step = generateNightSteps(game, 'first').find((s) => s.characterId === 'empath')
     // Un seul méchant (Diablotin) dans ce cercle de 9, potentiellement voisin ou non de l'Empathique.
     expect(step?.resolvedInfo).toMatch(/Nombre à indiquer : [012]/)
+    expect(step?.isPoisoned).toBeFalsy()
+  })
+
+  it("empêche de révéler la vraie information si le joueur qui la reçoit est empoisonné (ex. l'Empathique)", () => {
+    const { game, empathP } = buildFixture()
+    const poisonedGame: Game = {
+      ...game,
+      players: game.players.map((p) => p.id === empathP.id
+        ? { ...p, reminders: [{ id: 'r1', label: 'Empoisonné', sourceCharacterId: 'poisoner', createdAt: new Date().toISOString() }] }
+        : p),
+    }
+    const step = generateNightSteps(poisonedGame, 'first').find((s) => s.characterId === 'empath')
+    expect(step?.isPoisoned).toBe(true)
+    expect(step?.resolvedInfo).toContain('libre de donner la réponse de votre choix')
+    expect(step?.displayReveal).toBeUndefined()
+  })
+
+  it("trouve le joueur vivant même quand un joueur mort partage le même characterId (starpass du Diablotin, succession de la Confidente...)", () => {
+    // killPlayer ne vide jamais realCharacterId : après un transfert de rôle en cours de partie,
+    // l'ancien titulaire (mort) et le nouveau (vivant) partagent temporairement le même id. Le
+    // moteur doit ignorer le mort et générer l'étape pour le vivant, pas la faire disparaître.
+    const { game, impP, poisonerP } = buildFixture()
+    const transferredGame: Game = {
+      ...game,
+      players: game.players.map((p) => {
+        if (p.id === impP.id) return { ...p, alive: false }
+        if (p.id === poisonerP.id) return { ...p, realCharacterId: 'imp', alignment: 'evil' }
+        return p
+      }),
+    }
+    const steps = generateNightSteps(transferredGame, 'other')
+    const impStep = steps.find((s) => s.characterId === 'imp')
+    expect(impStep?.playerIds).toEqual([poisonerP.id])
   })
 
   it('ignore les personnages dont le joueur est mort', () => {
