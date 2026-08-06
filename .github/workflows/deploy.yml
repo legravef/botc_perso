@@ -51,3 +51,7 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # GitHub Pages peut rester en file plus de 10 minutes. L'action annule par défaut
+          # le déploiement après ce délai, alors que l'artefact est déjà correctement prêt.
+          timeout: 1800000
