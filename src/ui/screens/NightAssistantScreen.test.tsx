@@ -123,7 +123,7 @@ describe('NightAssistantScreen — Croque-mort ivre ou empoisonné', () => {
     useGameStore.getState().setPlayers([ugo!, nina!, paul!])
     useGameStore.getState().setPlayerCharacter(ugo!.id, 'undertaker')
     useGameStore.getState().setPlayerCharacter(nina!.id, 'baron')
-    useGameStore.getState().setPlayerCharacter(paul!.id, 'poisoner')
+    useGameStore.getState().setPlayerCharacter(paul!.id, 'soldier')
     useGameStore.getState().killPlayer(nina!.id)
     useGameStore.getState().addReminder(ugo!.id, 'Empoisonné (test)', 'poisoner')
     const game = useGameStore.getState().game!
@@ -131,12 +131,12 @@ describe('NightAssistantScreen — Croque-mort ivre ou empoisonné', () => {
 
     render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
     expect(screen.getByRole('heading', { name: 'Croque-mort' })).toBeInTheDocument()
-    expect(screen.getByText(/Choisissez le rôle à lui montrer/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Choisissez/).length).toBeGreaterThan(0)
 
+    fireEvent.click(screen.getAllByRole('button').find((button) => button.textContent?.includes('Choisir le r'))!)
     fireEvent.click(screen.getByRole('button', { name: 'Soldat' }))
-    expect(screen.getByRole('button', { name: 'Soldat' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByText(/Soldat/).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /Montrer directement sur l'écran/ })).toBeEnabled()
   })
 })

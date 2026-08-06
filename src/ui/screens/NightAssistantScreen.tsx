@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useGameStore } from '@/store'
 import { generateNightSteps } from '@/engine'
 import { getCharacterById, getCharactersForScript } from '@/data'
-import type { Game, Player } from '@/types'
+import type { Character, Game, Player } from '@/types'
 import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
 import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
 import { Button } from '../components/Button'
@@ -76,6 +76,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [targetId, setTargetId] = useState('')
   const [showReveal, setShowReveal] = useState(false)
   const [undertakerShownCharacterId, setUndertakerShownCharacterId] = useState('')
+  const [showUndertakerRolePicker, setShowUndertakerRolePicker] = useState(false)
   const [showDemonRole, setShowDemonRole] = useState(false)
   const [showGoonAlignment, setShowGoonAlignment] = useState(false)
   const [bmrTargetIds, setBmrTargetIds] = useState<string[]>([])
@@ -106,6 +107,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setTargetId('')
     setShowReveal(false)
     setUndertakerShownCharacterId('')
+    setShowUndertakerRolePicker(false)
     setShowDemonRole(false)
     setShowGoonAlignment(false)
     setBmrTargetIds([])
@@ -498,6 +500,11 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     : undefined
   const undertakerActualCharacterId = undertakerExecutedPlayer?.realCharacterId
   const undertakerRevealCharacterId = undertakerShownCharacterId || undertakerActualCharacterId
+  const undertakerPresentCharacters = Array.from(new Set(game.players
+    .map((player) => player.realCharacterId)
+    .filter((characterId): characterId is string => Boolean(characterId))))
+    .map((characterId) => getCharacterById(game.scriptId, characterId))
+    .filter((character): character is Character => Boolean(character))
   const reveal = step?.characterId === 'undertaker' && undertakerRevealCharacterId
     ? { kind: 'characters' as const, characterIds: [undertakerRevealCharacterId], title: 'Le personnage du joueur exécuté' }
     : step?.displayReveal
@@ -689,13 +696,12 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
               <div className="bg-danger/10 border border-danger/40 rounded-lg p-4 flex flex-col gap-3">
                 <div>
                   <p className="text-xs text-danger font-medium uppercase tracking-wide">Croque-mort ivre ou empoisonné</p>
-                  <p className="text-sm">Choisissez le rôle à lui montrer. Le rôle réel reste présélectionné comme repère pour le Conteur.</p>
+                  <p className="text-sm">Choisissez le rôle présent dans cette partie à lui montrer. Le rôle réel reste sélectionné comme repère.</p>
                 </div>
-                <CharacterChoiceGrid
-                  characters={getCharactersForScript(game.scriptId)}
-                  selectedIds={[undertakerRevealCharacterId]}
-                  onSelect={setUndertakerShownCharacterId}
-                />
+                <Button variant="secondary" className="self-start" onClick={() => setShowUndertakerRolePicker(true)}>
+                  Choisir le rôle à montrer
+                </Button>
+                <p className="text-xs text-success">Rôle à montrer : {getCharacterById(game.scriptId, undertakerRevealCharacterId)?.nameFr ?? undertakerRevealCharacterId}</p>
               </div>
             )}
 
@@ -1153,6 +1159,18 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
           setShowCourtierRolePicker(false)
         }}
         onClose={() => setShowCourtierRolePicker(false)}
+      />
+    )}
+    {showUndertakerRolePicker && (
+      <CharacterPickerOverlay
+        title="Croque-mort"
+        subtitle="Choisissez le rôle présent à montrer. Cette sélection ne modifie pas le rôle réel du joueur exécuté."
+        characters={undertakerPresentCharacters}
+        onSelect={(characterId) => {
+          setUndertakerShownCharacterId(characterId)
+          setShowUndertakerRolePicker(false)
+        }}
+        onClose={() => setShowUndertakerRolePicker(false)}
       />
     )}
     {showDemonRole && demonInfoPlayer && demonInfoCharacter && (
