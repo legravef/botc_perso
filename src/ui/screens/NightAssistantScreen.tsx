@@ -78,11 +78,13 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [undertakerShownCharacterId, setUndertakerShownCharacterId] = useState('')
   const [showUndertakerRolePicker, setShowUndertakerRolePicker] = useState(false)
   const [showDemonRole, setShowDemonRole] = useState(false)
+  const [showExorcistReveal, setShowExorcistReveal] = useState(false)
   const [showGoonAlignment, setShowGoonAlignment] = useState(false)
   const [bmrTargetIds, setBmrTargetIds] = useState<string[]>([])
   const [bmrDrunkPlayerId, setBmrDrunkPlayerId] = useState('')
   const [bmrCharacterChoice, setBmrCharacterChoice] = useState('')
   const [showCourtierRolePicker, setShowCourtierRolePicker] = useState(false)
+  const [bmrOncePowerDecision, setBmrOncePowerDecision] = useState<'use' | 'skip' | null>(null)
   const [bmrRecorded, setBmrRecorded] = useState(false)
   const [impTargetId, setImpTargetId] = useState('')
   const [impSuccessorId, setImpSuccessorId] = useState('')
@@ -116,11 +118,13 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setUndertakerShownCharacterId('')
     setShowUndertakerRolePicker(false)
     setShowDemonRole(false)
+    setShowExorcistReveal(false)
     setShowGoonAlignment(false)
     setBmrTargetIds([])
     setBmrDrunkPlayerId('')
     setBmrCharacterChoice('')
     setShowCourtierRolePicker(false)
+    setBmrOncePowerDecision(null)
     setBmrRecorded(false)
     setImpTargetId('')
     setImpSuccessorId('')
@@ -137,7 +141,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     // liste des étapes se recalcule et une étape différente peut se retrouver au même index —
     // sans ce garde-fou, l'état de l'étape précédente (résultat affiché, "déjà enregistré") reste
     // affiché par erreur sur la nouvelle étape.
-  }, [index, steps[index]?.id])
+  }, [index, steps[index]?.id, game?.nightNumber])
 
   useEffect(() => {
     if (!showReveal) return
@@ -176,10 +180,12 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     .filter((reminder) => ['courtier', 'innkeeper', 'sailor', 'pukka', 'exorcist', 'devils-advocate'].includes(reminder.sourceCharacterId))
     .map((reminder) => `${player.name} : ${reminder.label}`))
   const exorcisedDemonName = game.players.find((player) => player.realCharacterId && getCharacterById(game.scriptId, player.realCharacterId)?.category === 'demon' && player.reminders.some((reminder) => reminder.sourceCharacterId === 'exorcist'))?.name
+  const exorcistPlayer = game.players.find((player) => player.realCharacterId === 'exorcist')
   const activeDemon = game.players.find((player) => player.realCharacterId && getCharacterById(game.scriptId, player.realCharacterId)?.category === 'demon')
   const demonDrunkReason = activeDemon?.reminders.find((reminder) => reminder.label.startsWith('Ivre'))?.label
   const actingPlayer = actingPlayerId ? game.players.find((player) => player.id === actingPlayerId) : undefined
   const hasUsedBmrPower = !!actingPlayer && !!bmrCharacter && actingPlayer.notes.some((note) => note.text.includes(`[BMR:${bmrCharacter.id}]`))
+  const requiresBmrOncePowerDecision = bmrCharacter?.actionFrequency === 'once-per-game' && !hasUsedBmrPower
   const isExorcisedDemon = !!actingPlayer && bmrCharacter?.category === 'demon' && actingPlayer.reminders.some((reminder) => reminder.sourceCharacterId === 'exorcist')
   const godfatherCanKill = bmrCharacter?.id !== 'godfather' || !!game.godfatherKillDue
   const someoneDiedToday = !!game.lastExecutedPlayerId && game.players.find((player) => player.id === game.lastExecutedPlayerId)?.alive === false
@@ -865,6 +871,20 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
 
             {isBmrAction && bmrCharacter && (
               <div className="bg-surface-2 border border-accent/30 rounded-lg p-4 flex flex-col gap-3">
+                {requiresBmrOncePowerDecision && !bmrOncePowerDecision ? (
+                  <>
+                    <div>
+                      <p className="text-xs text-ink-2">Réveil</p>
+                      <p className="text-sm">Voulez-vous utiliser votre pouvoir cette nuit ?</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" onClick={() => setBmrOncePowerDecision('use')}>Oui, utiliser mon pouvoir</Button>
+                      <Button variant="ghost" onClick={() => { setBmrOncePowerDecision('skip'); setBmrRecorded(true) }}>Non, me rendormir</Button>
+                    </div>
+                  </>
+                ) : requiresBmrOncePowerDecision && bmrOncePowerDecision === 'skip' ? (
+                  <p className="rounded-lg border border-success/35 bg-success/10 px-3 py-2 text-sm">Très bien, vous pouvez vous rendormir.</p>
+                ) : <>
                 <div>
                   <p className="text-xs text-ink-2">Décision du Conteur</p>
                   <p className="text-sm">
@@ -962,12 +982,18 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                 {bmrRecorded && <p className="text-xs text-success">Rappels, notes et éventuelles morts ont été reportés dans le grimoire.</p>}
                 {hasUsedBmrPower && <p className="text-xs text-warn">Ce pouvoir unique a déjà été utilisé pendant cette partie.</p>}
                 {bmrInfoResult && <p className="bg-good/10 border border-good/35 rounded-lg px-3 py-2 text-sm">{bmrInfoResult}</p>}
+                </>}
               </div>
             )}
 
             {game.scriptId === 'bad-moon-rising' && isExorcisedDemon && (
               <div className="bg-warn/10 border border-warn/40 rounded-lg px-4 py-3 text-sm">
                 Le Démon a été ciblé par l’Exorciste : il ne peut pas utiliser son pouvoir cette nuit. Informez-le de l’identité de l’Exorciste.
+                {bmrCharacter?.id === 'pukka' && exorcistPlayer && (
+                  <Button variant="secondary" className="mt-3" onClick={() => setShowExorcistReveal(true)}>
+                    Afficher l’Exorciste sur la tablette
+                  </Button>
+                )}
               </div>
             )}
             {game.scriptId === 'bad-moon-rising' && bmrCharacter?.id === 'godfather' && !game.godfatherKillDue && (
@@ -1170,6 +1196,18 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
         }}
         onClose={() => setShowCourtierRolePicker(false)}
       />
+    )}
+
+    {showExorcistReveal && exorcistPlayer && (
+      <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col items-center justify-center gap-8 px-6 text-center">
+        <p className="text-ink-2 text-sm">L’Exorciste est…</p>
+        <div className="bg-accent/10 border border-accent/50 rounded-3xl px-12 py-10 flex flex-col items-center gap-4 min-w-72">
+          <RoleIcon characterId="exorcist" nameFr="Exorciste" size={92} />
+          <p className="text-3xl font-semibold">{exorcistPlayer.name}</p>
+          <p className="text-lg text-ink-2">Exorciste</p>
+        </div>
+        <Button variant="primary" onClick={() => setShowExorcistReveal(false)}>J’ai montré l’Exorciste</Button>
+      </div>
     )}
     {showUndertakerRolePicker && (
       <CharacterPickerOverlay

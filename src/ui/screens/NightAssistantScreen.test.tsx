@@ -156,6 +156,7 @@ describe('NightAssistantScreen — Bad Moon Rising : Professeur', () => {
     render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
 
     expect(screen.getByText('Professeur')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Oui, utiliser mon pouvoir' }))
     fireEvent.click(screen.getByRole('button', { name: `${nina!.name} (mort)` }))
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer dans le grimoire' }))
 
@@ -178,6 +179,7 @@ describe('NightAssistantScreen — Bad Moon Rising : Professeur', () => {
     useGameStore.getState().setPhase('night.other')
 
     render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Oui, utiliser mon pouvoir' }))
     fireEvent.click(screen.getByRole('button', { name: `${nina!.name} (mort)` }))
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer dans le grimoire' }))
 
