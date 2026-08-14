@@ -95,6 +95,24 @@ describe('generateNightSteps — première nuit', () => {
     expect(steps[1]?.resolvedInfo).toContain('Saint')
   })
 
+  it('ne donne aucune information de Sbire ou de Démon à 6 joueurs (Teensyville)', () => {
+    const assignments = [
+      'chef',
+      'empath',
+      'fortune-teller',
+      'saint',
+      'poisoner',
+      'imp',
+    ]
+    const players = assignments.map((id, index) => assignCharacter(createPlayer(`P${index}`, index), id))
+    const game = makeGame({ players, composition: makeComposition(assignments) })
+
+    const steps = generateNightSteps(game, 'first')
+
+    expect(steps.some((step) => step.kind === 'minion-info')).toBe(false)
+    expect(steps.some((step) => step.kind === 'demon-info')).toBe(false)
+  })
+
   it('expose les bluffs sous forme structurée pour un affichage impossible à manquer (icônes + confirmation)', () => {
     const { game, impP } = buildFixture()
     const steps = generateNightSteps(game, 'first')

@@ -33,6 +33,14 @@ for (const [characterId, fileName] of Object.entries(BAD_MOON_ICON_FILES)) {
   if (icon) ROLE_ICONS[characterId] = icon
 }
 
+// Ressources officielles mises à disposition des outils communautaires par TPI.
+Object.assign(ROLE_ICONS, {
+  clockmaker: 'https://release.botc.app/resources/characters/snv/clockmaker_g.webp',
+  sage: 'https://release.botc.app/resources/characters/snv/sage_g.webp',
+  artist: 'https://release.botc.app/resources/characters/snv/artist_g.webp',
+  klutz: 'https://release.botc.app/resources/characters/snv/klutz_g.webp',
+})
+
 /** URL de l'icône d'un personnage, ou undefined si aucune icône n'est fournie pour cet id. */
 export function getCharacterIconUrl(characterId: string): string | undefined {
   return ROLE_ICONS[characterId]

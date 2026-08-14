@@ -2,6 +2,55 @@ import type { Character, CharacterCategory, Composition, ScriptId, StorytellerLe
 import { getCharactersForScript } from '@/data'
 import { applySetupModifiers, getBaseDistribution, validateComposition } from './composition'
 
+export interface TroubleBrewingSixPlayerPreset {
+  id: 'balanced' | 'beginner' | 'social' | 'baron-chaos'
+  label: string
+  audience: string
+  description: string
+  characterIds: string[]
+  drunkBelievedCharacterId: string | null
+}
+
+/**
+ * Compositions prêtes à jouer pour Trouble Brewing à 6 joueurs. Elles
+ * respectent toutes la répartition Teensyville 3/1/1/1, sauf la variante
+ * Baron qui applique légalement +2 Parias / -2 Villageois (1/3/1/1).
+ */
+export const TROUBLE_BREWING_SIX_PLAYER_PRESETS: TroubleBrewingSixPlayerPreset[] = [
+  {
+    id: 'balanced',
+    label: 'Équilibrée',
+    audience: 'Recommandée',
+    description: 'Informations progressives, protection et incertitude autour de l’Ivrogne.',
+    characterIds: ['monk', 'librarian', 'undertaker', 'drunk', 'spy', 'imp'],
+    drunkBelievedCharacterId: 'empath',
+  },
+  {
+    id: 'beginner',
+    label: 'Première partie',
+    audience: 'Débutants',
+    description: 'Pouvoirs faciles à comprendre et une seule source contrôlée de désinformation.',
+    characterIds: ['washerwoman', 'empath', 'monk', 'saint', 'poisoner', 'imp'],
+    drunkBelievedCharacterId: null,
+  },
+  {
+    id: 'social',
+    label: 'Tendue et sociale',
+    audience: 'Intermédiaires',
+    description: 'Peu d’informations directes, mais des choix de morts et d’exécutions très délicats.',
+    characterIds: ['chef', 'ravenkeeper', 'mayor', 'saint', 'spy', 'imp'],
+    drunkBelievedCharacterId: null,
+  },
+  {
+    id: 'baron-chaos',
+    label: 'Chaos du Baron',
+    audience: 'Expérimentés',
+    description: 'Un seul vrai Villageois et trois Parias : une partie volontairement instable.',
+    characterIds: ['fortune-teller', 'drunk', 'recluse', 'saint', 'baron', 'imp'],
+    drunkBelievedCharacterId: 'empath',
+  },
+]
+
 /**
  * Profils de recommandation par niveau de Conteur.
  *

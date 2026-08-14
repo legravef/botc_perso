@@ -17,7 +17,8 @@ export function PlayersSetupScreen() {
   const setPlayers = useGameStore((s) => s.setPlayers)
   const setPhase = useGameStore((s) => s.setPhase)
 
-  const [playerCount, setPlayerCount] = useState(() =>
+  const fixedPlayerCount = game?.scriptId === 'no-greater-joy' ? 6 : null
+  const [playerCount, setPlayerCount] = useState(() => fixedPlayerCount ??
     Math.min(Math.max(game?.players.length || 7, MIN_PLAYERS), MAX_PLAYERS),
   )
   const [slots, setSlots] = useState<NameSlot[]>(() => {
@@ -108,11 +109,11 @@ export function PlayersSetupScreen() {
         <section>
           <label className="block text-sm text-ink-2 mb-2">Nombre de joueurs</label>
           <div className="flex items-center gap-3">
-            <Button variant="secondary" onClick={() => setPlayerCount((n) => Math.max(MIN_PLAYERS, n - 1))}>
+            <Button variant="secondary" disabled={fixedPlayerCount !== null} onClick={() => setPlayerCount((n) => Math.max(MIN_PLAYERS, n - 1))}>
               −
             </Button>
             <span className="text-2xl font-semibold w-12 text-center">{playerCount}</span>
-            <Button variant="secondary" onClick={() => setPlayerCount((n) => Math.min(MAX_PLAYERS, n + 1))}>
+            <Button variant="secondary" disabled={fixedPlayerCount !== null} onClick={() => setPlayerCount((n) => Math.min(MAX_PLAYERS, n + 1))}>
               +
             </Button>
           </div>
@@ -122,6 +123,18 @@ export function PlayersSetupScreen() {
               <DistributionTile label="Parias" value={distribution.outsider} />
               <DistributionTile label="Sbires" value={distribution.minion} />
               <DistributionTile label="Démon" value={distribution.demon} />
+            </div>
+          )}
+          {fixedPlayerCount !== null && (
+            <p className="mt-3 text-sm text-accent">No Greater Joy est un scénario Teensyville conçu spécialement pour 6 joueurs.</p>
+          )}
+          {(game?.scriptId === 'trouble-brewing' || game?.scriptId === 'no-greater-joy') && playerCount <= 6 && (
+            <div className="mt-4 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm">
+              <p className="font-medium">Format Teensyville</p>
+              <p className="mt-1 text-ink-2">
+                À 5 ou 6 joueurs, le Démon et le Sbire ne se connaissent pas, et le Démon ne reçoit
+                pas les 3 bluffs habituels.
+              </p>
             </div>
           )}
         </section>

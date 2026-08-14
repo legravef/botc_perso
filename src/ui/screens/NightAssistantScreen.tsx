@@ -3,8 +3,7 @@ import { useGameStore } from '@/store'
 import { generateNightSteps } from '@/engine'
 import { getCharacterById, getCharactersForScript } from '@/data'
 import type { Character, Game, Player } from '@/types'
-import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
-import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
+import { getScriptLogo } from '../scriptPresentation'
 import { Button } from '../components/Button'
 import { RoleIcon } from '../components/RoleIcon'
 import { SkyBanner } from '../components/SkyBanner'
@@ -92,6 +91,9 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [nightOutcome, setNightOutcome] = useState<string | null>(null)
   const [roleRevealRequest, setRoleRevealRequest] = useState<{ actorId: string; title: string } | null>(null)
   const [roleRevealTargetId, setRoleRevealTargetId] = useState('')
+  const [sageRevealRequest, setSageRevealRequest] = useState<{ actorId: string; title: string } | null>(null)
+  const [sageCandidateIds, setSageCandidateIds] = useState<string[]>([])
+  const [showSageReveal, setShowSageReveal] = useState(false)
   const [bmrReviveTargetId, setBmrReviveTargetId] = useState('')
   const [bmrInfoResult, setBmrInfoResult] = useState<string | null>(null)
   const [specialKillTargetId, setSpecialKillTargetId] = useState('')
@@ -132,6 +134,9 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setNightOutcome(null)
     setRoleRevealRequest(null)
     setRoleRevealTargetId('')
+    setSageRevealRequest(null)
+    setSageCandidateIds([])
+    setShowSageReveal(false)
     setBmrReviveTargetId('')
     setBmrInfoResult(null)
     setSpecialKillTargetId('')
@@ -191,7 +196,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const someoneDiedToday = !!game.lastExecutedPlayerId && game.players.find((player) => player.id === game.lastExecutedPlayerId)?.alive === false
   const zombuulCanKill = bmrCharacter?.id !== 'zombuul' || !someoneDiedToday
   const isBmrAction =
-    game.scriptId === 'bad-moon-rising' &&
+    (game.scriptId === 'bad-moon-rising' || (game.scriptId === 'no-greater-joy' && bmrCharacter?.id === 'chambermaid')) &&
     !!bmrCharacter &&
     !step?.isSimulated &&
     (bmrCharacter.targetCount > 0 || bmrCharacter.id === 'courtier') &&
@@ -316,7 +321,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     }
   }
 
-  function queueDeathTriggeredReveal(targetIds: string[]) {
+  function queueDeathTriggeredReveal(targetIds: string[], killedByDemon = false) {
     const updatedGame = useGameStore.getState().game
     if (!updatedGame) return
     const ravenkeeper = updatedGame.players.find(
@@ -325,7 +330,24 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     if (ravenkeeper) {
       setRoleRevealRequest({ actorId: ravenkeeper.id, title: `Gardien — ${ravenkeeper.name}` })
       setRoleRevealTargetId('')
+      return
     }
+    const sage = killedByDemon ? updatedGame.players.find(
+      (player) => targetIds.includes(player.id) && !player.alive && player.realCharacterId === 'sage',
+    ) : undefined
+    if (sage) {
+      setSageRevealRequest({ actorId: sage.id, title: `Sage — ${sage.name}` })
+      setSageCandidateIds([])
+      setShowSageReveal(false)
+    }
+  }
+
+  function toggleSageCandidate(playerId: string) {
+    setSageCandidateIds((current) => {
+      if (current.includes(playerId)) return current.filter((id) => id !== playerId)
+      if (current.length >= 2) return [current[1] as string, playerId]
+      return [...current, playerId]
+    })
   }
 
   function recordBmrAction() {
@@ -394,7 +416,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
           .map((player) => player.id)
         if (previousTargets.length > 0) {
           resolveNightDeaths(previousTargets, 'pukka')
-          queueDeathTriggeredReveal(previousTargets)
+          queueDeathTriggeredReveal(previousTargets, true)
         }
         applyNightlyReminder('pukka', 'Empoisonné (Pukka)', targets[0]!.id)
       } else if (reminder) {
@@ -405,14 +427,17 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     if (BMR_KILLERS.has(bmrCharacter.id) && targets.length > 0) {
       resolveNightDeaths(targets.map((target) => target.id), bmrCharacter.id, bmrCharacter.id === 'assassin')
       reportDemonOutcome(targets.map((target) => target.id), bmrCharacter.nameFr)
-      queueDeathTriggeredReveal(targets.map((target) => target.id))
+      queueDeathTriggeredReveal(targets.map((target) => target.id), bmrCharacter.category === 'demon')
     }
     if (bmrCharacter.id === 'shabaloth') {
       if (bmrReviveTargetId) revivePlayer(bmrReviveTargetId)
       setShabalothVictims(targets.map((target) => target.id))
     }
     if (bmrCharacter.id === 'chambermaid') {
-      const awakened = targets.filter((target) => steps.some((nightStep) => nightStep.kind === 'character' && !nightStep.isSimulated && nightStep.playerIds.includes(target.id))).length
+      const awakened = targets.filter((target) =>
+        steps.some((nightStep) => nightStep.kind === 'character' && !nightStep.isSimulated && nightStep.playerIds.includes(target.id))
+        || target.notes.some((note) => note.text.includes(`[NGJ:sage:${game.nightNumber}]`)),
+      ).length
       setBmrInfoResult(`Montrez ${awakened} au/à la Concierge. Les joueurs ivres ou empoisonnés comptent tout de même s’ils se sont réveillés à cause de leur pouvoir.`)
     }
     if (bmrCharacter.id === 'professor') {
@@ -467,7 +492,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
         'power-used',
       )
       reportDemonOutcome([deathTargetId], 'Diablotin')
-      queueDeathTriggeredReveal([deathTargetId])
+      queueDeathTriggeredReveal([deathTargetId], true)
       // La victime peut avoir déjà joué plus tôt dans la nuit. Sa disparition raccourcit alors
       // la file et peut laisser l'index courant hors limites : rester calé sur le Diablotin
       // permet de terminer proprement cette nuit sans perdre la validation de la victime.
@@ -563,7 +588,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     <div className="min-h-screen flex flex-col bg-surface-0 text-ink-0">
       <header className="flex items-center justify-between px-6 py-4 border-b border-border flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <img src={game.scriptId === 'bad-moon-rising' ? logoBadMoonRising : logoTroubleBrewing} alt="" className="w-8 h-8 object-contain opacity-90" aria-hidden="true" />
+          <img src={getScriptLogo(game.scriptId)} alt="" className="w-8 h-8 object-contain opacity-90" aria-hidden="true" />
           <div>
             <h1 className="text-lg font-semibold">{title}</h1>
             <p className="text-xs text-ink-2">
@@ -1081,6 +1106,52 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
           <p className="text-3xl font-semibold">{roleRevealCharacter?.nameFr ?? '?'}</p>
         </div>
         <Button variant="primary" onClick={() => setRoleRevealRequest(null)}>J’ai montré ce rôle</Button>
+      </div>
+    )}
+
+    {sageRevealRequest && !showSageReveal && (
+      <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col items-center justify-center gap-6 px-8">
+        <div className="text-center">
+          <p className="text-xs text-accent uppercase tracking-[0.18em] mb-3">Réveil réactif</p>
+          <h2 className="text-2xl font-semibold">{sageRevealRequest.title}</h2>
+          <p className="text-ink-2 mt-3">Choisissez exactement deux joueurs, dont le Démon vivant.</p>
+        </div>
+        <PlayerChoiceGrid
+          players={game.players.filter((player) => player.id !== sageRevealRequest.actorId)}
+          selectedIds={sageCandidateIds}
+          onSelect={toggleSageCandidate}
+        />
+        {sageCandidateIds.length === 2 && activeDemon && !sageCandidateIds.includes(activeDemon.id) && (
+          <p className="text-sm text-danger">L’un des deux joueurs montrés doit être le Démon.</p>
+        )}
+        <div className="flex gap-3">
+          <Button variant="ghost" onClick={() => setSageRevealRequest(null)}>Passer ce réveil</Button>
+          <Button
+            variant="primary"
+            disabled={sageCandidateIds.length !== 2 || !activeDemon || !sageCandidateIds.includes(activeDemon.id)}
+            onClick={() => {
+              const names = sageCandidateIds.map((id) => game.players.find((player) => player.id === id)?.name).filter(Boolean).join(' ou ')
+              addNote(sageRevealRequest.actorId, `[NGJ:sage:${game.nightNumber}] Sage : voit ${names}.`, 'information')
+              setShowSageReveal(true)
+            }}
+          >
+            Montrer ces deux joueurs
+          </Button>
+        </div>
+      </div>
+    )}
+
+    {sageRevealRequest && showSageReveal && (
+      <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col items-center justify-center gap-8 px-6 text-center">
+        <p className="text-ink-2 text-sm">Le Démon est l’un de ces deux joueurs</p>
+        <div className="flex flex-wrap justify-center gap-5">
+          {sageCandidateIds.map((id) => (
+            <div key={id} className="min-w-48 rounded-2xl border border-accent/50 bg-accent/10 px-8 py-7">
+              <p className="text-3xl font-semibold">{game.players.find((player) => player.id === id)?.name ?? '?'}</p>
+            </div>
+          ))}
+        </div>
+        <Button variant="primary" onClick={() => setSageRevealRequest(null)}>Information montrée</Button>
       </div>
     )}
 

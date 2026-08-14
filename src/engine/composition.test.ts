@@ -34,6 +34,12 @@ describe('getBaseDistribution', () => {
 })
 
 describe('applySetupModifiers — Baron', () => {
+  it('applique la répartition 1 Villageois / 3 Parias / 1 Sbire / 1 Démon à 6 joueurs', () => {
+    const { base, effective } = applySetupModifiers(['baron'], 6, SCRIPT)
+    expect(base).toEqual({ townsfolk: 3, outsider: 1, minion: 1, demon: 1 })
+    expect(effective).toEqual({ townsfolk: 1, outsider: 3, minion: 1, demon: 1 })
+  })
+
   it('ajoute deux Parias et retire deux Villageois quand le Baron est sélectionné (9 joueurs)', () => {
     const base = getBaseDistribution(9) // 5 villageois, 2 étrangers, 1 sbire, 1 démon
     const { effective, appliedModifiers } = applySetupModifiers(['baron'], 9, SCRIPT)

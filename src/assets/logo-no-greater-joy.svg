@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="No Greater Joy">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="60%">
+      <stop offset="0" stop-color="#34254d"/>
+      <stop offset="1" stop-color="#17131f"/>
+    </radialGradient>
+  </defs>
+  <circle cx="80" cy="80" r="70" fill="url(#bg)" stroke="#d8b866" stroke-width="4"/>
+  <circle cx="80" cy="68" r="39" fill="none" stroke="#eee1b4" stroke-width="4"/>
+  <g stroke="#eee1b4" stroke-width="3" stroke-linecap="round">
+    <path d="M80 33v8M80 95v8M45 68h8M107 68h8M55 43l6 6M99 87l6 6M105 43l-6 6M61 87l-6 6"/>
+    <path d="M80 68V47M80 68l17 10" stroke-width="5"/>
+  </g>
+  <circle cx="80" cy="68" r="5" fill="#d8b866"/>
+  <text x="80" y="128" text-anchor="middle" fill="#eee1b4" font-family="Georgia,serif" font-size="18" font-weight="700">NO GREATER</text>
+  <text x="80" y="147" text-anchor="middle" fill="#d8b866" font-family="Georgia,serif" font-size="18" font-weight="700">JOY</text>
+</svg>

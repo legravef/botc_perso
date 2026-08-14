@@ -1,6 +1,6 @@
 import type { Character, Game, InfoPairPreparation, Player } from '@/types'
 import { getCharacterById, getCharactersForScript } from '@/data'
-import { calculateChefNumber, calculateEmpathNumber } from './characters'
+import { calculateChefNumber, calculateClockmakerNumber, calculateEmpathNumber } from './characters'
 
 export type NightType = 'first' | 'other'
 
@@ -46,6 +46,7 @@ interface OrderedStep extends NightStep {
  * joueur est empoisonné, plutôt que la vraie valeur calculée par le moteur. */
 const POISON_SENSITIVE_INFO_ROLES = new Set([
   'chef', 'empath', 'washerwoman', 'librarian', 'investigator', 'fortune-teller', 'undertaker',
+  'clockmaker', 'chambermaid', 'sage',
 ])
 
 function isPoisonedPlayer(player: Player): boolean {
@@ -101,6 +102,15 @@ function buildCharacterStepRaw(game: Game, character: Character, player: Player)
   }
 
   switch (character.id) {
+    case 'clockmaker': {
+      const number = calculateClockmakerNumber(game.players)
+      return {
+        ...base,
+        instruction: 'Montrez silencieusement la distance minimale entre le Démon et son Sbire (1 signifie qu’ils sont voisins).',
+        resolvedInfo: `Nombre à indiquer : ${number}`,
+        displayReveal: { kind: 'number', value: number },
+      }
+    }
     case 'chef': {
       const number = calculateChefNumber(game.players)
       return {
@@ -236,7 +246,10 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
 
   const ordered: OrderedStep[] = []
 
-  if (nightType === 'first') {
+  // À 5 ou 6 joueurs en Trouble Brewing (Teensyville), les joueurs maléfiques
+  // ne reçoivent pas les informations d'équipe et le Démon ne reçoit aucun bluff.
+  const isSupportedTeensyville = ['trouble-brewing', 'no-greater-joy'].includes(game.scriptId) && game.players.length <= 6
+  if (nightType === 'first' && !isSupportedTeensyville) {
     const demonPlayer = game.players.find((p) => {
       const character = p.realCharacterId ? getCharacterById(game.scriptId, p.realCharacterId) : undefined
       return p.alive && character?.category === 'demon'

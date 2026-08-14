@@ -26,3 +26,18 @@ export function calculateEmpathNumber(
   }
   return [left, right].filter(isEvil).length
 }
+
+/** Distance minimale en nombre de pas entre le Démon et un Sbire (1 = voisins). */
+export function calculateClockmakerNumber(players: Player[]): number {
+  const ordered = [...players].sort((a, b) => a.seat - b.seat)
+  const demonIndex = ordered.findIndex((player) => player.alignment === 'evil' && player.realCharacterId === 'imp')
+  const minionIndexes = ordered
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => player.alignment === 'evil' && ['baron', 'scarlet-woman'].includes(player.realCharacterId ?? ''))
+    .map(({ index }) => index)
+  if (demonIndex < 0 || minionIndexes.length === 0) return 0
+  return Math.min(...minionIndexes.map((index) => {
+    const direct = Math.abs(index - demonIndex)
+    return Math.min(direct, ordered.length - direct)
+  }))
+}

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
-import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
-import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
 import { useGameStore } from '@/store'
+import { getScriptLogo } from '../scriptPresentation'
 import { Button } from './Button'
 
 interface ScreenProps {
@@ -15,7 +14,7 @@ interface ScreenProps {
 
 export function Screen({ title, subtitle, onBack, headerActions, children, footer }: ScreenProps) {
   const scriptId = useGameStore((s) => s.game?.scriptId)
-  const scriptLogo = scriptId === 'bad-moon-rising' ? logoBadMoonRising : logoTroubleBrewing
+  const scriptLogo = getScriptLogo(scriptId)
   return (
     <div className="min-h-screen flex flex-col bg-surface-0 text-ink-0">
       <header className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border">

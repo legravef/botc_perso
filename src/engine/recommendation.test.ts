@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { generateSuggestedComposition } from './recommendation'
+import { generateSuggestedComposition, TROUBLE_BREWING_SIX_PLAYER_PRESETS } from './recommendation'
+import { validateComposition } from './composition'
 
 const SCRIPT = 'trouble-brewing' as const
+
+describe('préréglages Trouble Brewing à 6 joueurs', () => {
+  it.each(TROUBLE_BREWING_SIX_PLAYER_PRESETS)('$label respecte une composition officielle valide', (preset) => {
+    const composition = validateComposition(preset.characterIds, 6, SCRIPT)
+    expect(composition.isValid).toBe(true)
+    expect(composition.characterIds).toHaveLength(6)
+  })
+
+  it('applique correctement le Baron avec trois Parias', () => {
+    const preset = TROUBLE_BREWING_SIX_PLAYER_PRESETS.find((candidate) => candidate.id === 'baron-chaos')!
+    const composition = validateComposition(preset.characterIds, 6, SCRIPT)
+    expect(composition.effectiveCounts).toEqual({ townsfolk: 1, outsider: 3, minion: 1, demon: 1 })
+  })
+})
 
 describe('generateSuggestedComposition — niveau débutant (TPI TB1)', () => {
   it.each([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])(

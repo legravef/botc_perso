@@ -38,6 +38,9 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const [slayerTargetId, setSlayerTargetId] = useState('')
   const [dayActionOutcome, setDayActionOutcome] = useState<string | null>(null)
   const [forcedExecutionPlayerId, setForcedExecutionPlayerId] = useState('')
+  const [artistQuestion, setArtistQuestion] = useState('')
+  const [artistAnswer, setArtistAnswer] = useState<'oui' | 'non' | null>(null)
+  const [klutzTargetId, setKlutzTargetId] = useState('')
 
   if (!game) return null
 
@@ -74,6 +77,15 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const availableSlayers = game.scriptId === 'trouble-brewing'
     ? livingPlayers.filter((player) => player.realCharacterId === 'slayer' && !player.reminders.some((reminder) => reminder.sourceCharacterId === 'slayer'))
     : []
+  const availableArtists = game.scriptId === 'no-greater-joy'
+    ? livingPlayers.filter((player) => player.realCharacterId === 'artist' && !player.reminders.some((reminder) => reminder.sourceCharacterId === 'artist'))
+    : []
+  const artistPlayer = availableArtists[0]
+  const deadUnresolvedKlutz = game.scriptId === 'no-greater-joy'
+    ? deadPlayers.find((player) => player.realCharacterId === 'klutz' && !player.reminders.some((reminder) => reminder.sourceCharacterId === 'klutz'))
+    : undefined
+  const klutzPlayer = executedCandidate?.realCharacterId === 'klutz' ? executedCandidate : deadUnresolvedKlutz
+  const showKlutzChoice = !!klutzPlayer
 
   function resolveVirginNomination() {
     if (!virginId || !virginNominatorId) return
@@ -103,7 +115,20 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
     setSlayerTargetId('')
   }
 
+  function resolveArtistQuestion() {
+    if (!artistPlayer || !artistQuestion.trim() || !artistAnswer) return
+    addReminder(artistPlayer.id, 'Question posée', 'artist')
+    addNote(artistPlayer.id, `Artiste — « ${artistQuestion.trim()} » Réponse : ${artistAnswer.toUpperCase()}.`, 'information')
+    setDayActionOutcome(`Réponse privée donnée à ${artistPlayer.name} : ${artistAnswer.toUpperCase()}.`)
+    setArtistQuestion('')
+    setArtistAnswer(null)
+  }
+
   function handleConfirm() {
+    if (showKlutzChoice && !klutzTargetId) {
+      setDayActionOutcome(`Le Maladroit doit choisir publiquement un autre joueur vivant avant de poursuivre.`)
+      return
+    }
     if (!executedPlayerId) {
       setShowNoExecutionConfirm(true)
       return
@@ -118,6 +143,18 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
     resolveExecution(executedPlayerId || null)
     const updatedGame = useGameStore.getState().game
     if (!updatedGame) return
+    if (klutzPlayer && klutzTargetId) {
+      const updatedKlutz = updatedGame.players.find((player) => player.id === klutzPlayer.id)
+      const klutzTarget = updatedGame.players.find((player) => player.id === klutzTargetId)
+      if (updatedKlutz && !updatedKlutz.alive && klutzTarget) {
+        addReminder(updatedKlutz.id, `A choisi ${klutzTarget.name}`, 'klutz')
+        addNote(updatedKlutz.id, `Maladroit : choisit publiquement ${klutzTarget.name}.`, 'power-used')
+        if (klutzTarget.alignment === 'evil') {
+          setWinSuggestion({ winner: 'evil', reason: `Maladroit : ${klutzTarget.name}, choisi publiquement, est méchant. Le Mal gagne.`, confirmedAt: new Date().toISOString() })
+          return
+        }
+      }
+    }
     if (gossipWasTrue && gossipPlayer) setGossipKillDue(true)
     if (showMoonchildChoice && moonchildTargetId) {
       const executedMoonchildDied = executedCandidate?.realCharacterId === 'moonchild'
@@ -201,7 +238,7 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
         )}
         <p className="text-lg">Le jour se lève.</p>
 
-        {(availableVirgins.length > 0 || availableSlayers.length > 0 || dayActionOutcome) && (
+        {(availableVirgins.length > 0 || availableSlayers.length > 0 || availableArtists.length > 0 || dayActionOutcome) && (
           <section className="bg-accent/10 border border-accent/35 rounded-2xl p-5 flex flex-col gap-4">
             <div>
               <h2 className="text-sm text-ink-2">Actions spéciales de journée</h2>
@@ -209,7 +246,7 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
             </div>
             {availableVirgins.length > 0 && (
               <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium">Vierge â€” nomination par un Villageois</p>
+                <p className="text-sm font-medium">Vierge — nomination par un Villageois</p>
                 <PlayerChoiceGrid players={availableVirgins} selectedIds={virginId ? [virginId] : []} onSelect={setVirginId} />
                 <p className="text-xs text-ink-2">Choisissez ensuite le Villageois qui vient de la nommer.</p>
                 <PlayerChoiceGrid players={eligibleVirginNominators} selectedIds={virginNominatorId ? [virginNominatorId] : []} onSelect={setVirginNominatorId} />
@@ -218,10 +255,22 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
             )}
             {availableSlayers.length > 0 && (
               <div className="flex flex-col gap-2 border-t border-accent/25 pt-4">
-                <p className="text-sm font-medium">Chasseur â€” tir unique</p>
+                <p className="text-sm font-medium">Chasseur — tir unique</p>
                 <PlayerChoiceGrid players={availableSlayers} selectedIds={slayerId ? [slayerId] : []} onSelect={setSlayerId} />
                 {slayerId && <PlayerChoiceGrid players={livingPlayers.filter((player) => player.id !== slayerId)} selectedIds={slayerTargetId ? [slayerTargetId] : []} onSelect={setSlayerTargetId} />}
                 <Button variant="secondary" disabled={!slayerId || !slayerTargetId} onClick={resolveSlayerShot}>Résoudre le tir du Chasseur</Button>
+              </div>
+            )}
+            {artistPlayer && (
+              <div className="flex flex-col gap-2 border-t border-accent/25 pt-4">
+                <p className="text-sm font-medium">Artiste — question unique</p>
+                <p className="text-xs text-ink-2">Saisissez la question posée en privé, puis la réponse donnée par le Conteur.</p>
+                <input value={artistQuestion} onChange={(event) => setArtistQuestion(event.target.value)} placeholder="Question à laquelle répondre par oui ou non" className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm" />
+                <div className="flex gap-2">
+                  <Button variant={artistAnswer === 'oui' ? 'primary' : 'secondary'} onClick={() => setArtistAnswer('oui')}>Oui</Button>
+                  <Button variant={artistAnswer === 'non' ? 'primary' : 'secondary'} onClick={() => setArtistAnswer('non')}>Non</Button>
+                  <Button variant="secondary" disabled={!artistQuestion.trim() || !artistAnswer} onClick={resolveArtistQuestion}>Enregistrer</Button>
+                </div>
               </div>
             )}
             {dayActionOutcome && <p className="text-sm text-success">{dayActionOutcome}</p>}
@@ -287,6 +336,13 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
               <p className="text-xs uppercase tracking-wide text-warn mb-1">Moonchild — choix public si sa mort est annoncée</p>
               <p className="text-sm mb-2">Choisissez le joueur vivant ciblé. Il mourra la nuit suivante uniquement s’il est gentil au moment de ce choix.</p>
               <PlayerChoiceGrid players={livingPlayers.filter((player) => player.id !== executedCandidate?.id)} selectedIds={moonchildTargetId ? [moonchildTargetId] : []} onSelect={setMoonchildTargetId} />
+            </div>
+          )}
+          {showKlutzChoice && klutzPlayer && (
+            <div className="bg-warn/10 border border-warn/40 rounded-lg px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-warn mb-1">Maladroit — choix public obligatoire</p>
+              <p className="text-sm mb-2">{klutzPlayer.name} apprend sa mort et doit choisir un autre joueur vivant. Si cette cible est méchante, le Mal gagne immédiatement.</p>
+              <PlayerChoiceGrid players={livingPlayers.filter((player) => player.id !== klutzPlayer.id)} selectedIds={klutzTargetId ? [klutzTargetId] : []} onSelect={setKlutzTargetId} />
             </div>
           )}
         </section>

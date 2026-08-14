@@ -51,11 +51,18 @@ export function applySetupModifiers(
     if (!character || !modifier) continue
 
     if (modifier.type === 'add-outsiders-remove-townsfolk') {
-      effective.outsider += modifier.count
-      effective.townsfolk -= modifier.count
+      // No Greater Joy ne contient que deux Parias. À 6 joueurs, l'un est
+      // déjà présent : le Baron n'en ajoute donc qu'un, conformément à la
+      // note officielle du scénario.
+      const availableOutsiders = characters.filter((candidate) => candidate.category === 'outsider').length
+      const appliedCount = scriptId === 'no-greater-joy'
+        ? Math.max(0, Math.min(modifier.count, availableOutsiders - effective.outsider))
+        : modifier.count
+      effective.outsider += appliedCount
+      effective.townsfolk -= appliedCount
       appliedModifiers.push({
         characterId: id,
-        description: `${character.nameFr} : +${modifier.count} Paria(s), -${modifier.count} Villageois(s).`,
+        description: `${character.nameFr} : +${appliedCount} Paria(s), -${appliedCount} Villageois(s).`,
       })
     }
     if (modifier.type === 'choose-outsider-delta') {
@@ -88,6 +95,10 @@ export function validateComposition(
   const errors: string[] = []
   const warnings: string[] = []
   const characters = getCharactersForScript(scriptId)
+
+  if (scriptId === 'no-greater-joy' && playerCount !== 6) {
+    errors.push(`No Greater Joy est dédié aux parties de 6 joueurs (actuellement ${playerCount}).`)
+  }
 
   if (playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
     errors.push(
@@ -151,7 +162,7 @@ export function validateComposition(
       "L'Ivrogne nécessite de choisir, en préparation de partie, un Villageois absent qu'il croira être.",
     )
   }
-  if (validIds.includes('imp')) {
+  if (validIds.includes('imp') && playerCount >= 7) {
     warnings.push(
       'Le Diablotin nécessite de choisir trois bluffs parmi les personnages absents, en préparation de partie.',
     )

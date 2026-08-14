@@ -100,7 +100,11 @@ export function PreparationScreen() {
   const demon = game.players
     .map((player) => ({ player, character: player.realCharacterId ? getCharactersForScript(game.scriptId).find((c) => c.id === player.realCharacterId) : undefined }))
     .find(({ character }) => character?.category === 'demon')?.character
-  const needsDemonBluffs = !!demon
+  // Dans Trouble Brewing, les « Demon info » (identité des Sbires et trois
+  // bluffs) ne sont données qu'à partir de 7 joueurs. À 5 ou 6, la partie
+  // suit les règles Teensyville.
+  const isSupportedTeensyville = ['trouble-brewing', 'no-greater-joy'].includes(game.scriptId) && game.players.length <= 6
+  const needsDemonBluffs = !!demon && !isSupportedTeensyville
 
   const scriptCharacters = getCharactersForScript(game.scriptId)
   const absentTownsfolk = scriptCharacters.filter(

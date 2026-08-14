@@ -41,7 +41,11 @@ function buildLabel(game: Game): string {
   const formatted = Number.isNaN(date.getTime())
     ? game.createdAt
     : date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  const scriptName = game.scriptId === 'bad-moon-rising' ? 'Bad Moon Rising' : 'Trouble Brewing'
+  const scriptName = game.scriptId === 'bad-moon-rising'
+    ? 'Bad Moon Rising'
+    : game.scriptId === 'no-greater-joy'
+      ? 'No Greater Joy'
+      : 'Trouble Brewing'
   return `${scriptName} — ${formatted} — ${game.players.length} joueurs`
 }
 

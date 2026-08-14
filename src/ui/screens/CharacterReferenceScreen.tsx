@@ -3,6 +3,7 @@ import { getCharactersForScript } from '@/data'
 import type { Character, CharacterCategory, ScriptId } from '@/types'
 import { Screen } from '../components/Screen'
 import { RoleIcon } from '../components/RoleIcon'
+import { getScriptName } from '../scriptPresentation'
 
 const CATEGORY_ORDER: CharacterCategory[] = ['townsfolk', 'outsider', 'minion', 'demon']
 const CATEGORY_LABELS: Record<CharacterCategory, string> = { townsfolk: 'Villageois', outsider: 'Parias', minion: 'Sbires', demon: 'Démon' }
@@ -42,6 +43,7 @@ function Details({ character, scriptId }: { character: Character; scriptId: Scri
     <>
       <p className="text-sm text-ink-1 mt-1 leading-relaxed">{character.fullDescription}</p>
       {details && <ul className="mt-3 pl-4 border-l-2 border-accent/35 flex flex-col gap-1 text-xs leading-relaxed text-ink-2">{details.map((detail) => <li key={detail}>{detail}</li>)}</ul>}
+      {character.specialRules.length > 0 && <ul className="mt-3 pl-4 border-l-2 border-accent/35 flex flex-col gap-1 text-xs leading-relaxed text-ink-2">{character.specialRules.map((detail) => <li key={detail}>{detail}</li>)}</ul>}
       {(character.firstNightOrder !== null || character.otherNightOrder !== null) && <p className="text-xs text-accent mt-3">Ordre de nuit : {character.firstNightOrder !== null ? `première nuit ${character.firstNightOrder}` : '—'} · {character.otherNightOrder !== null ? `autres nuits ${character.otherNightOrder}` : '—'}</p>}
     </>
   )
@@ -50,13 +52,14 @@ function Details({ character, scriptId }: { character: Character; scriptId: Scri
 export function CharacterReferenceScreen({ onBack, scriptId = 'trouble-brewing' }: { onBack: () => void; scriptId?: ScriptId }) {
   const [selectedScript, setSelectedScript] = useState<ScriptId>(scriptId)
   const characters = getCharactersForScript(selectedScript)
-  const scriptName = selectedScript === 'bad-moon-rising' ? 'Bad Moon Rising' : 'Trouble Brewing'
+  const scriptName = getScriptName(selectedScript)
   return (
     <Screen title={`Personnages — ${scriptName}`} subtitle="Référence privée du MJ : texte du rôle, ordre de nuit et arbitrages importants." onBack={onBack}>
       <div className="max-w-3xl mx-auto flex flex-col gap-8">
-        <div className="grid grid-cols-2 gap-2 sticky top-2 z-10 bg-surface-0 py-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sticky top-2 z-10 bg-surface-0 py-2">
           <button onClick={() => setSelectedScript('trouble-brewing')} className={`rounded-xl border px-4 py-3 font-medium ${selectedScript === 'trouble-brewing' ? 'border-accent bg-accent/15' : 'border-border bg-surface-1'}`}>Trouble Brewing</button>
           <button onClick={() => setSelectedScript('bad-moon-rising')} className={`rounded-xl border px-4 py-3 font-medium ${selectedScript === 'bad-moon-rising' ? 'border-accent bg-accent/15' : 'border-border bg-surface-1'}`}>Bad Moon Rising</button>
+          <button onClick={() => setSelectedScript('no-greater-joy')} className={`rounded-xl border px-4 py-3 font-medium ${selectedScript === 'no-greater-joy' ? 'border-accent bg-accent/15' : 'border-border bg-surface-1'}`}>No Greater Joy</button>
         </div>
         {CATEGORY_ORDER.map((category) => (
           <section key={category}>

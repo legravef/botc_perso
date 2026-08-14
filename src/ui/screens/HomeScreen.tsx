@@ -1,7 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { useGameStore } from '@/store'
-import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
-import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
+import { logoBadMoonRising, logoNoGreaterJoy, logoTroubleBrewing } from '../scriptPresentation'
 import { Button } from '../components/Button'
 
 const DEMON_HEAD_URL =
@@ -117,12 +116,18 @@ export function HomeScreen({ onOpenCharacterReference, onOpenTraining }: HomeScr
       </div>
 
       <div className="relative flex flex-col gap-3 w-full max-w-sm">
-        <section aria-label="Choisir un scénario" className="grid grid-cols-2 gap-3">
+        <section aria-label="Choisir un scénario" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <ScriptCard
             name="Trouble Brewing"
             description="Pour découvrir le jeu"
             logo={logoTroubleBrewing}
             onClick={() => createGame('trouble-brewing')}
+          />
+          <ScriptCard
+            name="No Greater Joy"
+            description="Teensyville — 6 joueurs"
+            logo={logoNoGreaterJoy}
+            onClick={() => createGame('no-greater-joy')}
           />
           <ScriptCard
             name="Bad Moon Rising"

@@ -1,7 +1,6 @@
 import { useGameStore } from '@/store'
 import { getCharacterById } from '@/data'
-import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
-import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
+import { getScriptLogo } from '../scriptPresentation'
 import { Button } from '../components/Button'
 import { RoleIcon } from '../components/RoleIcon'
 
@@ -13,7 +12,7 @@ export function GameEndScreen({ onGoHome }: { onGoHome: () => void }) {
   if (!game || !game.end) return null
 
   const isGood = game.end.winner === 'good'
-  const scriptLogo = game.scriptId === 'bad-moon-rising' ? logoBadMoonRising : logoTroubleBrewing
+  const scriptLogo = getScriptLogo(game.scriptId)
   const players = [...game.players].sort((a, b) => a.seat - b.seat)
   const survivors = game.players.filter((player) => player.alive).length
   const deaths = game.players.length - survivors

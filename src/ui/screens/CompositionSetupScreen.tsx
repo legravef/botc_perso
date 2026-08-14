@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useGameStore } from '@/store'
 import { getCharactersForScript } from '@/data'
-import { generateRandomComposition, generateSuggestedComposition, validateComposition } from '@/engine'
+import {
+  generateRandomComposition,
+  generateSuggestedComposition,
+  TROUBLE_BREWING_SIX_PLAYER_PRESETS,
+  validateComposition,
+  type TroubleBrewingSixPlayerPreset,
+} from '@/engine'
 import type { Character, CharacterCategory, Composition, StorytellerLevel } from '@/types'
 import { Screen } from '../components/Screen'
 import { Button } from '../components/Button'
 import { RoleIcon } from '../components/RoleIcon'
+import { getScriptName } from '../scriptPresentation'
 
 const CATEGORY_ORDER: CharacterCategory[] = ['townsfolk', 'outsider', 'minion', 'demon']
 const CATEGORY_LABELS: Record<CharacterCategory, string> = {
@@ -32,6 +39,7 @@ export function CompositionSetupScreen() {
   const game = useGameStore((s) => s.game)
   const setComposition = useGameStore((s) => s.setComposition)
   const setStorytellerLevel = useGameStore((s) => s.setStorytellerLevel)
+  const setPreparation = useGameStore((s) => s.setPreparation)
   const setGodfatherOutsiderDelta = useGameStore((s) => s.setGodfatherOutsiderDelta)
   const setPhase = useGameStore((s) => s.setPhase)
 
@@ -137,6 +145,18 @@ export function CompositionSetupScreen() {
     }
   }
 
+  function handleSixPlayerPreset(preset: TroubleBrewingSixPlayerPreset) {
+    const result = validateComposition(preset.characterIds, 6, 'trouble-brewing')
+    if (!result.isValid) {
+      setRandomError(`Le préréglage « ${preset.label} » n'est pas valide.`)
+      return
+    }
+    setSelected(new Set(result.characterIds))
+    setLocked(new Set())
+    setPreparation({ drunkBelievedCharacterId: preset.drunkBelievedCharacterId })
+    setRandomError(null)
+  }
+
   function handleNext() {
     if (!composition.isValid) return
     setGodfatherOutsiderDelta(godfatherDelta)
@@ -147,7 +167,7 @@ export function CompositionSetupScreen() {
   return (
     <Screen
       title="Nouvelle partie — Composition"
-      subtitle={`${playerCount} joueurs — ${scriptId === 'bad-moon-rising' ? 'Bad Moon Rising' : 'Trouble Brewing'}`}
+      subtitle={`${playerCount} joueurs — ${getScriptName(scriptId)}`}
       onBack={() => setPhase('setup.players')}
       footer={
         <Button variant="primary" disabled={!composition.isValid} onClick={handleNext}>
@@ -173,7 +193,11 @@ export function CompositionSetupScreen() {
               </button>
             ))}
           </div>
-          <p className="text-xs text-ink-2 max-w-2xl">{LEVEL_CAPTIONS[level]}</p>
+          <p className="text-xs text-ink-2 max-w-2xl">
+            {scriptId === 'no-greater-joy'
+              ? 'Scénario Teensyville officiel : les tirages restent limités à ses 11 personnages et respectent automatiquement la règle spéciale du Baron à 6 joueurs.'
+              : LEVEL_CAPTIONS[level]}
+          </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="primary" onClick={handleSuggestedDraw}>
               Composition conseillée ({LEVEL_OPTIONS.find((o) => o.value === level)?.label.toLowerCase()})
@@ -187,6 +211,53 @@ export function CompositionSetupScreen() {
             </Button>
           </div>
         </section>
+        {scriptId === 'trouble-brewing' && playerCount === 6 && (
+          <section className="rounded-xl border border-accent/30 bg-surface-1 p-4">
+            <div className="mb-3">
+              <p className="font-medium">Compositions conseillées — Trouble Brewing à 6</p>
+              <p className="mt-1 text-xs text-ink-2">
+                Chaque préréglage remplace la sélection actuelle. Le faux rôle de l’Ivrogne est prérempli lorsqu’il est présent.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {TROUBLE_BREWING_SIX_PLAYER_PRESETS.map((preset) => {
+                const characters = preset.characterIds
+                  .map((id) => getCharactersForScript(scriptId).find((character) => character.id === id))
+                  .filter((character): character is Character => Boolean(character))
+                const isActive = preset.characterIds.length === selected.size
+                  && preset.characterIds.every((id) => selected.has(id))
+                return (
+                  <article key={preset.id} className="rounded-lg border border-border bg-surface-2 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium">{preset.label}</p>
+                        <p className="text-xs text-accent">{preset.audience}</p>
+                      </div>
+                      <Button
+                        variant={isActive ? 'primary' : 'secondary'}
+                        className="shrink-0 px-3 py-1.5 text-xs"
+                        onClick={() => handleSixPlayerPreset(preset)}
+                      >
+                        {isActive ? 'Sélectionnée' : 'Choisir'}
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-xs text-ink-2">{preset.description}</p>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {characters.map((character) => (
+                        <span key={character.id} className="rounded-full border border-border px-2 py-1 text-xs">
+                          {character.nameFr}
+                        </span>
+                      ))}
+                    </div>
+                    {preset.drunkBelievedCharacterId && (
+                      <p className="mt-2 text-xs text-warn">Ivrogne : se croit Empathique.</p>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+        )}
         {randomError && <p className="text-sm text-danger">{randomError}</p>}
 
         <CompositionSummary composition={composition} />

@@ -3,8 +3,7 @@ import { useGameStore } from '@/store'
 import { getCharacterById } from '@/data'
 import { LAYOUT_PRESETS, generateLayoutPositions, getEffectivePosition, getLivingNeighbors, type LayoutPresetId } from '@/engine'
 import { getReminderVisual } from '@/lib/reminderStyles'
-import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
-import logoBadMoonRising from '../../../bad_moon/Logo BDM.png'
+import { getScriptLogo } from '../scriptPresentation'
 import type { Player } from '@/types'
 import { SeatingLayout } from '../components/SeatingLayout'
 import { Button } from '../components/Button'
@@ -62,7 +61,7 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
   if (!game) return null
 
   const isBadMoonRising = game.scriptId === 'bad-moon-rising'
-  const scriptLogo = isBadMoonRising ? logoBadMoonRising : logoTroubleBrewing
+  const scriptLogo = getScriptLogo(game.scriptId)
   const selectedPlayer = selectedPlayerId ? game.players.find((p) => p.id === selectedPlayerId) : undefined
   function describeUsefulEvent(event: (typeof history)[number]): string | null {
     if (event.type === 'execution.resolved') {
