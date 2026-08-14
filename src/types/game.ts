@@ -125,6 +125,8 @@ export interface Game {
   minstrelExpiresOnNight?: number | null
   /** Bad Moon Rising — le Parrain peut tuer cette nuit après la mort diurne d’un Paria. */
   godfatherKillDue?: boolean
+  /** Jour exact ayant déclenché le Parrain, afin qu'un ancien déclenchement ne fuite pas sur une nuit ultérieure. */
+  godfatherKillDueOnDay?: number | null
   /** Bad Moon Rising — victimes de la dernière attaque du Shabaloth, disponibles à la régurgitation. */
   shabalothVictimIds?: string[]
   /** Bad Moon Rising — Pipelette : une déclaration vraie impose une mort la nuit suivante. */

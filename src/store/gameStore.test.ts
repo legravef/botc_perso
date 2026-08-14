@@ -700,3 +700,27 @@ describe('useGameStore — Trouble Brewing : Soldat et Confidente', () => {
     expect(scarletWoman?.realCharacterId).toBe('scarlet-woman')
   })
 })
+
+describe('useGameStore — déclenchement journalier du Parrain', () => {
+  it('efface un ancien déclenchement à l’aube et mémorise le jour exact d’une mort de Paria', () => {
+    useGameStore.getState().createGame('over-the-river')
+    const outsider = createPlayer('Reclus', 0)
+    useGameStore.getState().setPlayers([outsider])
+    useGameStore.getState().setPlayerCharacter(outsider.id, 'recluse')
+    useGameStore.getState().setGodfatherKillDue(true)
+    useGameStore.getState().setPhase('night.other')
+
+    useGameStore.getState().completeNight()
+    expect(useGameStore.getState().game).toMatchObject({
+      dayNumber: 1,
+      godfatherKillDue: false,
+      godfatherKillDueOnDay: null,
+    })
+
+    useGameStore.getState().resolveExecution(outsider.id)
+    expect(useGameStore.getState().game).toMatchObject({
+      godfatherKillDue: true,
+      godfatherKillDueOnDay: 1,
+    })
+  })
+})

@@ -132,11 +132,40 @@ describe('Over the River', () => {
     ]
     const game = gameWith(players, {
       phase: 'night.other',
+      godfatherKillDue: true,
+      godfatherKillDueOnDay: 0,
       preparation: { ...createEmptyPreparation(), lunaticBelievedDemonId: 'imp' },
     })
     expect(generateNightSteps(game, 'other').filter((step) => step.kind === 'character').map((step) => step.characterId)).toEqual([
       'innkeeper', 'snakecharmer', 'lunatic', 'imp', 'godfather', 'professor',
     ])
+  })
+
+  it('ne réveille le Parrain après la première nuit que si un Paria est mort ce jour-là', () => {
+    const players = [
+      assigned('Parrain', 0, 'godfather', 'evil'), assigned('Diablotin', 1, 'imp', 'evil'),
+      assigned('Bon', 2, 'clockmaker', 'good'), assigned('Paria', 3, 'recluse', 'good'),
+      assigned('Bon 2', 4, 'innkeeper', 'good'), assigned('Bon 3', 5, 'professor', 'good'),
+    ]
+    const withoutOutsiderDeath = gameWith(players, { phase: 'night.other', godfatherKillDue: false })
+    expect(generateNightSteps(withoutOutsiderDeath, 'other').some((step) => step.characterId === 'godfather')).toBe(false)
+
+    const stalePreviousDayTrigger = gameWith(players, {
+      phase: 'night.other', dayNumber: 2, nightNumber: 3,
+      godfatherKillDue: true, godfatherKillDueOnDay: 1,
+    })
+    expect(generateNightSteps(stalePreviousDayTrigger, 'other').some((step) => step.characterId === 'godfather')).toBe(false)
+
+    const staleLegacyTrigger = gameWith(players, {
+      phase: 'night.other', dayNumber: 2, nightNumber: 3,
+      godfatherKillDue: true, godfatherKillDueOnDay: null, lastExecutedPlayerId: null,
+    })
+    expect(generateNightSteps(staleLegacyTrigger, 'other').some((step) => step.characterId === 'godfather')).toBe(false)
+
+    const withOutsiderDeath = gameWith(players, { phase: 'night.other', godfatherKillDue: true, godfatherKillDueOnDay: 0 })
+    const godfatherStep = generateNightSteps(withOutsiderDeath, 'other').find((step) => step.characterId === 'godfather')
+    expect(godfatherStep?.instruction).toContain('Un Paria est mort')
+    expect(godfatherStep?.resolvedInfo).toBeUndefined()
   })
 
   it('échange atomiquement le Charmeur et le Démon puis empoisonne le nouveau Charmeur', () => {

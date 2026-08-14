@@ -20,6 +20,7 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const addReminder = useGameStore((s) => s.addReminder)
   const addNote = useGameStore((s) => s.addNote)
   const setGossipKillDue = useGameStore((s) => s.setGossipKillDue)
+  const setGodfatherKillDue = useGameStore((s) => s.setGodfatherKillDue)
   const setMoonchildTarget = useGameStore((s) => s.setMoonchildTarget)
   const history = useGameStore((s) => s.history)
 
@@ -111,6 +112,7 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
     addReminder(slayerId, `Pouvoir utilisé (${slayerName})`, 'slayer')
     if (!impaired && target && targetRegistersAsDemon) {
       declareDeath(slayerTargetId)
+      if (targetCharacter?.category === 'outsider') setGodfatherKillDue(true)
       addNote(slayerId, `${slayerName} : vise ${target.name}, enregistré(e) comme Démon.`, 'power-used')
       setDayActionOutcome(`${target.name} est enregistré(e) comme Démon et meurt grâce au pouvoir de la ${slayerName}.`)
     } else {

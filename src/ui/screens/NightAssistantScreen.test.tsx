@@ -73,6 +73,60 @@ describe('NightAssistantScreen — Over the River : Lunatique', () => {
   })
 })
 
+describe('NightAssistantScreen — Over the River : Aubergiste', () => {
+  it('ne présente jamais l’Aubergiste comme le Marin dans le choix du joueur ivre', () => {
+    const innkeeper = createPlayer('Fab', 0)
+    const oscar = createPlayer('Oscar', 1)
+
+    useGameStore.getState().createGame('over-the-river')
+    useGameStore.getState().setPlayers([innkeeper, oscar])
+    useGameStore.getState().setPlayerCharacter(innkeeper.id, 'innkeeper')
+    useGameStore.getState().setPlayerCharacter(oscar.id, 'clockmaker')
+    useGameStore.getState().setPhase('night.other')
+
+    render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: innkeeper.name }))
+    fireEvent.click(screen.getByRole('button', { name: oscar.name }))
+
+    expect(screen.getByText('Qui est ivre ?')).toBeInTheDocument()
+    expect(screen.queryByText(/Marin/)).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: innkeeper.name })).toHaveLength(2)
+  })
+})
+
+describe('NightAssistantScreen — Over the River : Parrain', () => {
+  it('réinitialise l’action du Diablotin puis propose au Parrain un écran joueur privé et sélectionnable', () => {
+    const imp = createPlayer('Arthur', 0)
+    const godfather = createPlayer('Oscar', 1)
+    const victim = createPlayer('Fab', 2)
+
+    useGameStore.getState().createGame('over-the-river')
+    useGameStore.getState().setPlayers([imp, godfather, victim])
+    useGameStore.getState().setPlayerCharacter(imp.id, 'imp')
+    useGameStore.getState().setPlayerCharacter(godfather.id, 'godfather')
+    useGameStore.getState().setPlayerCharacter(victim.id, 'clockmaker')
+    useGameStore.getState().setGodfatherKillDue(true)
+    useGameStore.getState().setPhase('night.other')
+
+    render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+    chooseImpTargetPrivately(victim.name)
+    fireEvent.click(screen.getByRole('button', { name: 'Résoudre et enregistrer la victime' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
+
+    expect(screen.getByText('Parrain')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ouvrir l’écran du Parrain' })).toBeEnabled()
+    expect(screen.queryByText('Décision enregistrée')).not.toBeInTheDocument()
+    expect(screen.queryByText(/attaque de Diablotin/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir l’écran du Parrain' }))
+    const dialog = screen.getByRole('dialog', { name: 'Action privée du Parrain' })
+    expect(within(dialog).queryByText(/Conteur|Réveillez|Un Paria est mort/)).not.toBeInTheDocument()
+    expect(within(dialog).getByText('Choisissez un joueur à tuer cette nuit.')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: imp.name }))
+    expect(within(dialog).getByRole('button', { name: 'Confirmer mon choix' })).toBeEnabled()
+  })
+})
+
 describe('NightAssistantScreen Mayor', () => {
   it('allows the Storyteller to redirect an Imp kill to another living player', () => {
     const [arthur, nina, marc] = ['Arthur', 'Nina', 'Marc'].map((name, i) => createPlayer(name, i))

@@ -78,6 +78,8 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [showLunaticPlayerAction, setShowLunaticPlayerAction] = useState(false)
   const [showImpPlayerAction, setShowImpPlayerAction] = useState(false)
   const [impPrivateChoiceConfirmed, setImpPrivateChoiceConfirmed] = useState(false)
+  const [showGodfatherPlayerAction, setShowGodfatherPlayerAction] = useState(false)
+  const [godfatherPrivateChoiceConfirmed, setGodfatherPrivateChoiceConfirmed] = useState(false)
   const [undertakerShownCharacterId, setUndertakerShownCharacterId] = useState('')
   const [showUndertakerRolePicker, setShowUndertakerRolePicker] = useState(false)
   const [showDemonRole, setShowDemonRole] = useState(false)
@@ -129,6 +131,8 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setShowLunaticPlayerAction(false)
     setShowImpPlayerAction(false)
     setImpPrivateChoiceConfirmed(false)
+    setShowGodfatherPlayerAction(false)
+    setGodfatherPrivateChoiceConfirmed(false)
     setUndertakerShownCharacterId('')
     setShowUndertakerRolePicker(false)
     setShowDemonRole(false)
@@ -509,8 +513,11 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
         const newSteps = generateNightSteps(updatedGame, nightType)
         const newIndex = newSteps.findIndex((s) => s.characterId === 'imp' && s.playerIds.includes(impSuccessorId))
         if (newIndex !== -1) {
-          skipNextStepResetRef.current = true
-          setIndex(newIndex)
+          const stepChanged = newIndex !== index || newSteps[newIndex]?.id !== step?.id
+          if (stepChanged) {
+            skipNextStepResetRef.current = true
+            setIndex(newIndex)
+          }
         }
       }
     } else {
@@ -535,8 +542,11 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
         const newSteps = generateNightSteps(updatedGame, nightType)
         const newIndex = newSteps.findIndex((s) => s.characterId === 'imp' && s.playerIds.includes(actingPlayerId))
         if (newIndex !== -1) {
-          skipNextStepResetRef.current = true
-          setIndex(newIndex)
+          const stepChanged = newIndex !== index || newSteps[newIndex]?.id !== step?.id
+          if (stepChanged) {
+            skipNextStepResetRef.current = true
+            setIndex(newIndex)
+          }
         }
       }
     }
@@ -985,7 +995,31 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
               </div>
             )}
 
-            {isBmrAction && bmrCharacter && (
+            {isBmrAction && bmrCharacter?.id === 'godfather' && (
+              <div className="bg-danger/10 border border-danger/35 rounded-lg p-4 flex flex-col gap-3">
+                <div>
+                  <p className="text-xs text-danger uppercase tracking-wide">Écran privé du joueur</p>
+                  <p className="text-sm">Réveillez {actingPlayer?.name}, puis ouvrez son écran privé de Parrain.</p>
+                </div>
+                {!godfatherPrivateChoiceConfirmed ? (
+                  <Button variant="secondary" onClick={() => setShowGodfatherPlayerAction(true)}>Ouvrir l’écran du Parrain</Button>
+                ) : (
+                  <div className="rounded-lg border border-accent/35 bg-surface-2 p-3 flex flex-col gap-2">
+                    <p className="text-xs uppercase tracking-wide text-ink-2">Choix reçu — MJ uniquement</p>
+                    <p className="text-lg font-semibold">{game.players.find((player) => player.id === bmrTargetIds[0])?.name ?? 'Cible inconnue'}</p>
+                    {!bmrRecorded && <Button variant="ghost" className="self-start" onClick={() => { setGodfatherPrivateChoiceConfirmed(false); setBmrTargetIds([]) }}>Faire choisir à nouveau</Button>}
+                  </div>
+                )}
+                {godfatherPrivateChoiceConfirmed && (
+                  <Button variant="secondary" disabled={bmrRecorded || !bmrTargetSelectionValid()} onClick={recordBmrAction}>
+                    {bmrRecorded ? 'Victime enregistrée' : 'Résoudre et enregistrer la victime'}
+                  </Button>
+                )}
+                {bmrRecorded && <p className="text-xs text-success">La mort et les rappels ont été reportés dans le grimoire.</p>}
+              </div>
+            )}
+
+            {isBmrAction && bmrCharacter && bmrCharacter.id !== 'godfather' && (
               <div className="bg-surface-2 border border-accent/30 rounded-lg p-4 flex flex-col gap-3">
                 {requiresBmrOncePowerDecision && !bmrOncePowerDecision ? (
                   <>
@@ -1103,7 +1137,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                       selectedIds={bmrDrunkPlayerId ? [bmrDrunkPlayerId] : []}
                       disabled={bmrRecorded}
                       onSelect={setBmrDrunkPlayerId}
-                      getLabel={(player) => player.id === actingPlayerId ? `${player.name} (Marin)` : player.name}
+                      getLabel={(player) => bmrCharacter.id === 'sailor' && player.id === actingPlayerId ? `${player.name} (Marin)` : player.name}
                     />
                     <select value={bmrDrunkPlayerId} onChange={(e) => setBmrDrunkPlayerId(e.target.value)} disabled={bmrRecorded} className="hidden">
                       {bmrCharacter.id === 'sailor' && <option value={actingPlayerId}>Le Marin</option>}
@@ -1131,9 +1165,6 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                   </Button>
                 )}
               </div>
-            )}
-            {(game.scriptId === 'bad-moon-rising' || game.scriptId === 'over-the-river') && bmrCharacter?.id === 'godfather' && !game.godfatherKillDue && (
-              <div className="bg-surface-2 border border-border rounded-lg px-4 py-3 text-sm">Le Parrain ne tue pas cette nuit : aucun Paria n’est mort pendant la journée précédente.</div>
             )}
             {game.scriptId === 'bad-moon-rising' && bmrCharacter?.id === 'zombuul' && someoneDiedToday && (
               <div className="bg-surface-2 border border-border rounded-lg px-4 py-3 text-sm">Le Zombuul ne tue pas cette nuit : quelqu’un est mort aujourd’hui (exécution).</div>
@@ -1263,6 +1294,49 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
           ))}
         </div>
         <Button variant="primary" onClick={() => setSageRevealRequest(null)}>Information montrée</Button>
+      </div>
+    )}
+
+    {showGodfatherPlayerAction && isBmrAction && bmrCharacter?.id === 'godfather' && (
+      <div
+        className="fixed inset-0 z-[70] bg-surface-0 flex flex-col items-center justify-center px-6 py-10 text-center"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Action privée du Parrain"
+      >
+        {!godfatherPrivateChoiceConfirmed ? (
+          <div className="w-full max-w-xl flex flex-col items-center gap-6">
+            <RoleIcon characterId="godfather" nameFr="Parrain" size={88} />
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-evil">Votre personnage</p>
+              <h1 className="mt-2 text-4xl font-semibold">Parrain</h1>
+              <p className="mt-3 text-base text-ink-1">{bmrCharacter.fullDescription}</p>
+            </div>
+            <div className="w-full rounded-2xl border border-evil/40 bg-evil-bg/50 p-5">
+              <p className="text-lg font-medium">Choisissez un joueur à tuer cette nuit.</p>
+              <div className="mt-4">
+                <PlayerChoiceGrid
+                  players={game.players.filter((player) => player.alive)}
+                  selectedIds={bmrTargetIds}
+                  onSelect={toggleBmrTarget}
+                />
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              disabled={!bmrTargetSelectionValid()}
+              onClick={() => setGodfatherPrivateChoiceConfirmed(true)}
+            >
+              Confirmer mon choix
+            </Button>
+          </div>
+        ) : (
+          <div className="w-full max-w-md rounded-2xl border border-success/40 bg-success/10 p-8 flex flex-col items-center gap-5">
+            <p className="text-3xl font-semibold">Choix enregistré</p>
+            <p className="text-ink-1">Vous pouvez fermer les yeux et rendre l’iPad au Conteur.</p>
+            <Button variant="primary" onClick={() => setShowGodfatherPlayerAction(false)}>Retour au Conteur</Button>
+          </div>
+        )}
       </div>
     )}
 

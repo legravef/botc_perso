@@ -305,6 +305,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       lunaticTargetIds: [],
       minstrelExpiresOnNight: null,
       godfatherKillDue: false,
+      godfatherKillDueOnDay: null,
       shabalothVictimIds: [],
       gossipKillDue: false,
       moonchildTargetId: null,
@@ -457,6 +458,10 @@ export const useGameStore = create<GameStore>((set, get) => {
           phase: 'day.discussion',
           dayNumber: isFirst ? 1 : g.dayNumber + 1,
           nightNumber: isFirst ? 1 : g.nightNumber,
+          // Le nouveau jour commence sans déclenchement du Parrain. Une mort de
+          // Paria pendant ce jour le réactivera avec le numéro de jour courant.
+          godfatherKillDue: false,
+          godfatherKillDueOnDay: null,
           // Ces effets ne valent que jusqu'à l'aube : ne jamais laisser un vieux rappel
           // protéger/saouler un joueur lors d'une nuit suivante.
           players: g.players.map((player) => ({
@@ -528,9 +533,9 @@ export const useGameStore = create<GameStore>((set, get) => {
               reminders: [...p.reminders, { id: nanoid(), label: 'Ivre (Ménestrel)', sourceCharacterId: 'minstrel', createdAt: new Date().toISOString() }],
             })
           }
-          const godfatherKillDue = executedDied && executedCharacter?.category === 'outsider'
-            ? true
-            : g.godfatherKillDue
+          const outsiderExecuted = executedDied && executedCharacter?.category === 'outsider'
+          const alreadyTriggeredToday = !!g.godfatherKillDue && g.godfatherKillDueOnDay === g.dayNumber
+          const godfatherKillDue = outsiderExecuted || alreadyTriggeredToday
           players = applyScarletWomanSuccession(g.scriptId, g.players, players)
           return {
             ...g,
@@ -538,6 +543,7 @@ export const useGameStore = create<GameStore>((set, get) => {
             mastermindExtraDayDueOnDay:
               isDemonExecution && mastermindAlive ? g.dayNumber + 1 : g.mastermindExtraDayDueOnDay,
             godfatherKillDue,
+            godfatherKillDueOnDay: godfatherKillDue ? g.dayNumber : null,
             minstrelExpiresOnNight: executedDied && executedCharacter?.category === 'minion' && minstrelAlive
               ? g.nightNumber + 1
               : g.minstrelExpiresOnNight,
@@ -701,7 +707,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     setLastExorcistTarget: (playerId) => commit('player.updated', (g) => ({ ...g, lastExorcistTargetId: playerId })),
     setLastDevilsAdvocateTarget: (playerId) => commit('player.updated', (g) => ({ ...g, lastDevilsAdvocateTargetId: playerId })),
     setLunaticTargets: (playerIds) => commit('player.updated', (g) => ({ ...g, lunaticTargetIds: playerIds })),
-    setGodfatherKillDue: (value) => commit('player.updated', (g) => ({ ...g, godfatherKillDue: value })),
+    setGodfatherKillDue: (value) => commit('player.updated', (g) => ({
+      ...g,
+      godfatherKillDue: value,
+      godfatherKillDueOnDay: value ? g.dayNumber : null,
+    })),
     setShabalothVictims: (playerIds) => commit('player.updated', (g) => ({ ...g, shabalothVictimIds: playerIds })),
     setGossipKillDue: (value) => commit('player.updated', (g) => ({ ...g, gossipKillDue: value })),
     setMoonchildTarget: (playerId, wasGood = null) => commit('player.updated', (g) => ({ ...g, moonchildTargetId: playerId, moonchildTargetWasGood: wasGood })),

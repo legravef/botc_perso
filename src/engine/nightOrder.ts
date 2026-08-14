@@ -79,8 +79,8 @@ function buildPairStep(
   }
 }
 
-function buildCharacterStep(game: Game, character: Character, player: Player): NightStep {
-  const step = buildCharacterStepRaw(game, character, player)
+function buildCharacterStep(game: Game, character: Character, player: Player, nightType: NightType): NightStep {
+  const step = buildCharacterStepRaw(game, character, player, nightType)
   if (POISON_SENSITIVE_INFO_ROLES.has(character.id) && step.resolvedInfo && isPoisonedPlayer(player)) {
     return {
       ...step,
@@ -92,7 +92,7 @@ function buildCharacterStep(game: Game, character: Character, player: Player): N
   return step
 }
 
-function buildCharacterStepRaw(game: Game, character: Character, player: Player): NightStep {
+function buildCharacterStepRaw(game: Game, character: Character, player: Player, nightType: NightType): NightStep {
   const base = {
     id: `${character.id}-${player.id}`,
     kind: 'character' as const,
@@ -204,6 +204,12 @@ function buildCharacterStepRaw(game: Game, character: Character, player: Player)
       }
     }
     case 'godfather': {
+      if (nightType === 'other') {
+        return {
+          ...base,
+          instruction: 'Un Paria est mort pendant la journée précédente. Réveillez le Parrain et demandez-lui de choisir un joueur : il meurt.',
+        }
+      }
       const outsiders = game.players.filter((p) => {
         const c = p.realCharacterId ? getCharacterById(game.scriptId, p.realCharacterId) : undefined
         return c?.category === 'outsider'
@@ -262,6 +268,16 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
   // ne reçoivent pas les informations d'équipe et le Démon ne reçoit aucun bluff.
   const isSupportedTeensyville = ['trouble-brewing', 'no-greater-joy', 'over-the-river'].includes(game.scriptId) && game.players.length <= 6
   const usesFullLunaticIllusion = game.scriptId === 'bad-moon-rising'
+  const legacyExecutedOutsider = game.lastExecutedPlayerId
+    ? game.players.find((candidate) => candidate.id === game.lastExecutedPlayerId && !candidate.alive)?.realCharacterId
+    : undefined
+  const legacyExecutedCharacter = legacyExecutedOutsider
+    ? getCharacterById(game.scriptId, legacyExecutedOutsider)
+    : undefined
+  const godfatherKillDueThisNight = !!game.godfatherKillDue && (
+    game.godfatherKillDueOnDay === game.dayNumber
+    || (game.godfatherKillDueOnDay == null && legacyExecutedCharacter?.category === 'outsider')
+  )
   if (nightType === 'first' && !isSupportedTeensyville) {
     const demonPlayer = game.players.find((p) => {
       const character = p.realCharacterId ? getCharacterById(game.scriptId, p.realCharacterId) : undefined
@@ -309,6 +325,9 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
   for (const character of characters) {
     const order = nightType === 'first' ? character.firstNightOrder : character.otherNightOrder
     if (order === null) continue
+    // Après sa première information, le Parrain ne se réveille que si un Paria
+    // est réellement mort pendant la journée précédente.
+    if (nightType === 'other' && character.id === 'godfather' && !godfatherKillDueThisNight) continue
     if (character.id === 'undertaker' && !game.lastExecutedPlayerId) continue
     const player = findAlivePlayer(character.id)
     if (!player) continue
@@ -385,7 +404,7 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
       }
       continue
     }
-    ordered.push({ ...buildCharacterStep(game, character, player), orderValue: order })
+    ordered.push({ ...buildCharacterStep(game, character, player, nightType), orderValue: order })
     if (nightType === 'other' && character.id === 'lunatic') {
       const demonPlayer = game.players.find((candidate) => {
         const candidateCharacter = candidate.realCharacterId ? getCharacterById(game.scriptId, candidate.realCharacterId) : undefined
