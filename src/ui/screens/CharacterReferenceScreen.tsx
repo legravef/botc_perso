@@ -56,10 +56,11 @@ export function CharacterReferenceScreen({ onBack, scriptId = 'trouble-brewing' 
   return (
     <Screen title={`Personnages — ${scriptName}`} subtitle="Référence privée du MJ : texte du rôle, ordre de nuit et arbitrages importants." onBack={onBack}>
       <div className="max-w-3xl mx-auto flex flex-col gap-8">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sticky top-2 z-10 bg-surface-0 py-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sticky top-2 z-10 bg-surface-0 py-2">
           <button onClick={() => setSelectedScript('trouble-brewing')} className={`rounded-xl border px-4 py-3 font-medium ${selectedScript === 'trouble-brewing' ? 'border-accent bg-accent/15' : 'border-border bg-surface-1'}`}>Trouble Brewing</button>
           <button onClick={() => setSelectedScript('bad-moon-rising')} className={`rounded-xl border px-4 py-3 font-medium ${selectedScript === 'bad-moon-rising' ? 'border-accent bg-accent/15' : 'border-border bg-surface-1'}`}>Bad Moon Rising</button>
           <button onClick={() => setSelectedScript('no-greater-joy')} className={`rounded-xl border px-4 py-3 font-medium ${selectedScript === 'no-greater-joy' ? 'border-accent bg-accent/15' : 'border-border bg-surface-1'}`}>No Greater Joy</button>
+          <button onClick={() => setSelectedScript('over-the-river')} className={`rounded-xl border px-4 py-3 font-medium ${selectedScript === 'over-the-river' ? 'border-accent bg-accent/15' : 'border-border bg-surface-1'}`}>Over the River</button>
         </div>
         {CATEGORY_ORDER.map((category) => (
           <section key={category}>

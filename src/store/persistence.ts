@@ -45,6 +45,8 @@ function buildLabel(game: Game): string {
     ? 'Bad Moon Rising'
     : game.scriptId === 'no-greater-joy'
       ? 'No Greater Joy'
+      : game.scriptId === 'over-the-river'
+        ? 'Over the River'
       : 'Trouble Brewing'
   return `${scriptName} — ${formatted} — ${game.players.length} joueurs`
 }

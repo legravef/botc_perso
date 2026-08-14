@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useGameStore } from '@/store'
-import { generateNightSteps } from '@/engine'
+import { calculateClockmakerNumber, generateNightSteps } from '@/engine'
 import { getCharacterById, getCharactersForScript } from '@/data'
 import type { Character, Game, Player } from '@/types'
 import { getScriptLogo } from '../scriptPresentation'
@@ -56,6 +56,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const resolveNightDeaths = useGameStore((s) => s.resolveNightDeaths)
   const revivePlayer = useGameStore((s) => s.revivePlayer)
   const setPlayerCharacter = useGameStore((s) => s.setPlayerCharacter)
+  const resolveSnakeCharmerSwap = useGameStore((s) => s.resolveSnakeCharmerSwap)
   const setPlayerAlignment = useGameStore((s) => s.setPlayerAlignment)
   const setPoMustKillThree = useGameStore((s) => s.setPoMustKillThree)
   const setCourtierExpiry = useGameStore((s) => s.setCourtierExpiry)
@@ -74,6 +75,9 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const skipNextStepResetRef = useRef(false)
   const [targetId, setTargetId] = useState('')
   const [showReveal, setShowReveal] = useState(false)
+  const [showLunaticPlayerAction, setShowLunaticPlayerAction] = useState(false)
+  const [showImpPlayerAction, setShowImpPlayerAction] = useState(false)
+  const [impPrivateChoiceConfirmed, setImpPrivateChoiceConfirmed] = useState(false)
   const [undertakerShownCharacterId, setUndertakerShownCharacterId] = useState('')
   const [showUndertakerRolePicker, setShowUndertakerRolePicker] = useState(false)
   const [showDemonRole, setShowDemonRole] = useState(false)
@@ -96,6 +100,11 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [showSageReveal, setShowSageReveal] = useState(false)
   const [bmrReviveTargetId, setBmrReviveTargetId] = useState('')
   const [bmrInfoResult, setBmrInfoResult] = useState<string | null>(null)
+  const [recluseRegistersAsDemon, setRecluseRegistersAsDemon] = useState(false)
+  const [spyRegistersAsTownsfolk, setSpyRegistersAsTownsfolk] = useState(false)
+  const [clockmakerSpyRegistration, setClockmakerSpyRegistration] = useState<'minion' | 'good' | null>(null)
+  const [clockmakerRecluseRegistration, setClockmakerRecluseRegistration] = useState<'good' | 'minion' | 'demon' | null>(null)
+  const [godfatherIncludesSpy, setGodfatherIncludesSpy] = useState(false)
   const [specialKillTargetId, setSpecialKillTargetId] = useState('')
   const [showNightSummary, setShowNightSummary] = useState(false)
   const [confirmingCancelNight, setConfirmingCancelNight] = useState(false)
@@ -117,6 +126,9 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     }
     setTargetId('')
     setShowReveal(false)
+    setShowLunaticPlayerAction(false)
+    setShowImpPlayerAction(false)
+    setImpPrivateChoiceConfirmed(false)
     setUndertakerShownCharacterId('')
     setShowUndertakerRolePicker(false)
     setShowDemonRole(false)
@@ -139,6 +151,11 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setShowSageReveal(false)
     setBmrReviveTargetId('')
     setBmrInfoResult(null)
+    setRecluseRegistersAsDemon(false)
+    setSpyRegistersAsTownsfolk(false)
+    setClockmakerSpyRegistration(null)
+    setClockmakerRecluseRegistration(null)
+    setGodfatherIncludesSpy(false)
     setSpecialKillTargetId('')
     setShowNightSummary(false)
     // Dépend de l'identité de l'étape (son id), pas seulement de l'index : si une action tue le
@@ -196,11 +213,12 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const someoneDiedToday = !!game.lastExecutedPlayerId && game.players.find((player) => player.id === game.lastExecutedPlayerId)?.alive === false
   const zombuulCanKill = bmrCharacter?.id !== 'zombuul' || !someoneDiedToday
   const isBmrAction =
-    (game.scriptId === 'bad-moon-rising' || (game.scriptId === 'no-greater-joy' && bmrCharacter?.id === 'chambermaid')) &&
+    (game.scriptId === 'bad-moon-rising' || game.scriptId === 'over-the-river' || (game.scriptId === 'no-greater-joy' && bmrCharacter?.id === 'chambermaid')) &&
     !!bmrCharacter &&
     !step?.isSimulated &&
     (bmrCharacter.targetCount > 0 || bmrCharacter.id === 'courtier') &&
     !isExorcisedDemon && godfatherCanKill && zombuulCanKill &&
+    bmrCharacter.id !== 'imp' &&
     !(nightType === 'first' && bmrCharacter.id === 'lunatic') && !isLunaticSimulation
   const bmrEligiblePlayers = game.players.filter((player) => {
     if (bmrCharacter?.id === 'professor') return !player.alive
@@ -242,7 +260,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   }
 
   const requiresBluffConfirmation = (step?.kind === 'demon-info' || step?.characterId === 'lunatic') && (step.bluffCharacterIds?.length ?? 0) > 0
-  const canAdvance = (!isImpKillAction && !isBmrAction) || bmrRecorded
+  const canAdvance = (!isImpKillAction && !isBmrAction && !isLunaticSimulation) || bmrRecorded
 
   function handleNext() {
     if (!canAdvance) return
@@ -385,6 +403,22 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
       : ''
     addNote(actingPlayerId, `${['assassin', 'professor'].includes(bmrCharacter.id) ? `[BMR:${bmrCharacter.id}] ` : ''}${bmrCharacter.nameFr} : ${targetNames}${detail}`, 'power-used')
 
+    if (bmrCharacter.id === 'snakecharmer') {
+      const target = targets[0]
+      const targetCharacter = target?.realCharacterId ? getCharacterById(game.scriptId, target.realCharacterId) : undefined
+      const registersAsDemon = targetCharacter?.category === 'demon'
+        || (target?.realCharacterId === 'recluse' && recluseRegistersAsDemon)
+      if (target && registersAsDemon) {
+        resolveSnakeCharmerSwap(actingPlayerId, target.id)
+        const lunatic = game.players.find((player) => player.realCharacterId === 'lunatic')
+        setNightOutcome(`${actingPlayer?.name ?? 'Le Charmeur'} échange son personnage et son alignement avec ${target.name}. ${target.name} devient le Charmeur de serpents empoisonné de façon permanente. Réveillez les deux joueurs pour leur montrer leur nouveau personnage et leur nouvel alignement.${lunatic && targetCharacter?.category === 'demon' ? ` Montrez aussi à ${actingPlayer?.name ?? 'ce nouveau Démon'} que ${lunatic.name} est le Lunatique.` : ''}`)
+      } else {
+        setNightOutcome(`${target?.name ?? 'La cible'} n’est pas enregistré(e) comme Démon : aucun échange.`)
+      }
+      setBmrRecorded(true)
+      return
+    }
+
     // Bras droit : le 1er joueur qui le cible cette nuit (toute capacité confondue) devient
     // ivre jusqu'au prochain crépuscule, et le Bras droit prend son alignement.
     const goonTarget = targets.find((player) => player.realCharacterId === 'goon')
@@ -443,7 +477,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     if (bmrCharacter.id === 'professor') {
       for (const target of targets) {
         const role = target.realCharacterId ? getCharacterById(game.scriptId, target.realCharacterId) : undefined
-        if (role?.category === 'townsfolk') revivePlayer(target.id)
+        if (role?.category === 'townsfolk' || (target.realCharacterId === 'spy' && spyRegistersAsTownsfolk)) revivePlayer(target.id)
       }
     }
     if (gamblerGuessWrong) {
@@ -546,9 +580,29 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     .filter((characterId): characterId is string => Boolean(characterId))))
     .map((characterId) => getCharacterById(game.scriptId, characterId))
     .filter((character): character is Character => Boolean(character))
-  const reveal = step?.characterId === 'undertaker' && undertakerRevealCharacterId
-    ? { kind: 'characters' as const, characterIds: [undertakerRevealCharacterId], title: 'Le personnage du joueur exécuté' }
-    : step?.displayReveal
+  const actualOutsiderIds = game.players.flatMap((player) => {
+    const character = player.realCharacterId ? getCharacterById(game.scriptId, player.realCharacterId) : undefined
+    return character?.category === 'outsider' && player.realCharacterId ? [player.realCharacterId] : []
+  })
+  const isOverTheRiverClockmaker = game.scriptId === 'over-the-river' && step?.characterId === 'clockmaker'
+  const clockmakerHasSpy = game.players.some((player) => player.realCharacterId === 'spy')
+  const clockmakerHasRecluse = game.players.some((player) => player.realCharacterId === 'recluse')
+  const clockmakerRegistrationComplete = isOverTheRiverClockmaker
+    && (!clockmakerHasSpy || clockmakerSpyRegistration !== null)
+    && (!clockmakerHasRecluse || clockmakerRecluseRegistration !== null)
+  const otrClockmakerNumber = clockmakerRegistrationComplete
+    ? calculateClockmakerNumber(game.players, {
+        spyRegistersAsMinion: clockmakerSpyRegistration !== 'good',
+        recluseRegistersAs: clockmakerRecluseRegistration ?? 'good',
+      })
+    : null
+  const reveal = game.scriptId === 'over-the-river' && step?.characterId === 'clockmaker' && otrClockmakerNumber !== null && otrClockmakerNumber > 0
+    ? { kind: 'number' as const, value: otrClockmakerNumber }
+    : game.scriptId === 'over-the-river' && step?.characterId === 'godfather' && nightType === 'first'
+      ? { kind: 'characters' as const, characterIds: [...actualOutsiderIds, ...(godfatherIncludesSpy && game.players.some((player) => player.realCharacterId === 'spy') ? ['spy'] : [])], title: 'Parias enregistrés comme étant en jeu' }
+      : step?.characterId === 'undertaker' && undertakerRevealCharacterId
+        ? { kind: 'characters' as const, characterIds: [undertakerRevealCharacterId], title: 'Le personnage du joueur exécuté' }
+        : step?.displayReveal
   const revealPlayerA = reveal?.kind === 'pair' ? game.players.find((p) => p.id === reveal.playerAId) : undefined
   const revealPlayerB = reveal?.kind === 'pair' ? game.players.find((p) => p.id === reveal.playerBId) : undefined
   const revealCharacter = reveal?.kind === 'pair' ? getCharacterById(game.scriptId, reveal.characterId) : undefined
@@ -711,6 +765,56 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
               </div>
             )}
 
+            {game.scriptId === 'over-the-river' && step?.characterId === 'clockmaker' && (
+              <div className="rounded-lg border border-warn/40 bg-warn/10 p-4">
+                <p className="text-sm font-medium">Enregistrement pour l’Horloger</p>
+                {!clockmakerHasSpy && !clockmakerHasRecluse && (
+                  <p className="mt-1 text-xs text-ink-2">Ni l’Espionne ni le Reclus ne sont en jeu : aucun choix d’enregistrement n’est nécessaire.</p>
+                )}
+                {clockmakerHasSpy && (
+                  <div className="mt-3">
+                    <p className="text-xs text-ink-2">Comment l’Espionne est-elle enregistrée pour cette information ?</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button variant={clockmakerSpyRegistration === 'minion' ? 'primary' : 'secondary'} onClick={() => setClockmakerSpyRegistration('minion')}>Comme Sbire</Button>
+                      <Button variant={clockmakerSpyRegistration === 'good' ? 'primary' : 'secondary'} onClick={() => setClockmakerSpyRegistration('good')}>Comme bonne, pas Sbire</Button>
+                    </div>
+                  </div>
+                )}
+                {clockmakerHasRecluse && (
+                  <div className="mt-3">
+                    <p className="text-xs text-ink-2">Comment le Reclus est-il enregistré pour cette information ?</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button variant={clockmakerRecluseRegistration === 'good' ? 'primary' : 'secondary'} onClick={() => setClockmakerRecluseRegistration('good')}>Normalement, aucun</Button>
+                      <Button variant={clockmakerRecluseRegistration === 'minion' ? 'primary' : 'secondary'} onClick={() => setClockmakerRecluseRegistration('minion')}>Comme Sbire</Button>
+                      <Button variant={clockmakerRecluseRegistration === 'demon' ? 'primary' : 'secondary'} onClick={() => setClockmakerRecluseRegistration('demon')}>Comme Démon</Button>
+                    </div>
+                  </div>
+                )}
+                {clockmakerRegistrationComplete && otrClockmakerNumber !== null && otrClockmakerNumber > 0 && (
+                  <div className="mt-4 rounded-lg border border-accent/40 bg-surface-2 p-3">
+                    <p className="text-xs uppercase tracking-wide text-ink-2">Résultat calculé</p>
+                    <p className="mt-1 text-lg font-semibold">{otrClockmakerNumber} pas</p>
+                  </div>
+                )}
+                {clockmakerRegistrationComplete && otrClockmakerNumber === 0 && (
+                  <div className="mt-4 rounded-lg border border-danger/40 bg-danger/10 p-3">
+                    <p className="text-sm font-medium text-danger">Aucun Sbire n’est enregistré avec ces choix.</p>
+                    <p className="mt-1 text-xs text-ink-2">Choisissez un autre enregistrement afin de produire une information valable pour l’Horloger.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {game.scriptId === 'over-the-river' && step?.characterId === 'godfather' && nightType === 'first' && game.players.some((player) => player.realCharacterId === 'spy') && (
+              <div className="rounded-lg border border-warn/40 bg-warn/10 p-4">
+                <p className="text-sm font-medium">L’Espionne est-elle enregistrée comme Paria ?</p>
+                <div className="mt-3 flex gap-2">
+                  <Button variant={!godfatherIncludesSpy ? 'primary' : 'secondary'} onClick={() => setGodfatherIncludesSpy(false)}>Non</Button>
+                  <Button variant={godfatherIncludesSpy ? 'primary' : 'secondary'} onClick={() => setGodfatherIncludesSpy(true)}>Oui</Button>
+                </div>
+              </div>
+            )}
+
             {reveal && (
               <Button variant="secondary" onClick={() => setShowReveal(true)} className="self-start">
                 📱 Montrer directement sur l'écran (sans papier)
@@ -791,28 +895,19 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
             {isImpKillAction && (
               <div className="bg-danger/10 border border-danger/35 rounded-lg p-4 flex flex-col gap-3">
                 <div>
-                  <p className="text-xs text-danger uppercase tracking-wide">Choix du Diablotin</p>
-                  <p className="text-sm">Choisissez la victime de cette nuit. La mort est appliquée et tracée automatiquement.</p>
+                  <p className="text-xs text-danger uppercase tracking-wide">Écran privé du joueur</p>
+                  <p className="text-sm">Réveillez {actingPlayer?.name}, puis ouvrez son écran privé de Diablotin.</p>
                 </div>
-                <select
-                  value={impTargetId}
-                  onChange={(e) => handleImpTargetSelect(e.target.value)}
-                  disabled={bmrRecorded}
-                  className="hidden"
-                >
-                  <option value="">— Choisir un joueur —</option>
-                  {game.players.filter((player) => player.alive).map((player) => (
-                    <option key={player.id} value={player.id}>{player.name}{player.id === actingPlayerId ? ' (vous-même)' : ''}</option>
-                  ))}
-                </select>
-                <PlayerChoiceGrid
-                  players={game.players.filter((player) => player.alive)}
-                  selectedIds={impTargetId ? [impTargetId] : []}
-                  disabled={bmrRecorded}
-                  onSelect={handleImpTargetSelect}
-                  getLabel={(player) => `${player.name}${player.id === actingPlayerId ? ' (vous-même)' : ''}`}
-                />
-                {impTargetId === actingPlayerId && (
+                {!impPrivateChoiceConfirmed ? (
+                  <Button variant="secondary" onClick={() => setShowImpPlayerAction(true)}>Ouvrir l’écran de Diablotin</Button>
+                ) : (
+                  <div className="rounded-lg border border-accent/35 bg-surface-2 p-3 flex flex-col gap-2">
+                    <p className="text-xs uppercase tracking-wide text-ink-2">Choix reçu — MJ uniquement</p>
+                    <p className="text-lg font-semibold">{impTarget?.name ?? 'Cible inconnue'}</p>
+                    {!bmrRecorded && <Button variant="ghost" className="self-start" onClick={() => { setImpPrivateChoiceConfirmed(false); setImpTargetId('') }}>Faire choisir à nouveau</Button>}
+                  </div>
+                )}
+                {impPrivateChoiceConfirmed && impTargetId === actingPlayerId && (
                   <div>
                     {impSuccessors.length > 1 ? (
                       <>
@@ -830,7 +925,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                     )}
                   </div>
                 )}
-                {mayorCanRedirect && (
+                {impPrivateChoiceConfirmed && mayorCanRedirect && (
                   <div className="bg-accent/10 border border-accent/35 rounded-lg p-3 flex flex-col gap-2">
                     <div>
                       <p className="text-xs text-accent uppercase tracking-wide">Décision du Conteur â€” Maire</p>
@@ -854,13 +949,15 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                     )}
                   </div>
                 )}
-                <Button
-                  variant="secondary"
-                  disabled={bmrRecorded || !impTargetId || (impTargetId === actingPlayerId && !impSuccessorId)}
-                  onClick={recordImpKill}
-                >
-                  {bmrRecorded ? 'Victime enregistrée' : 'Enregistrer la victime'}
-                </Button>
+                {impPrivateChoiceConfirmed && (
+                  <Button
+                    variant="secondary"
+                    disabled={bmrRecorded || !impTargetId || (impTargetId === actingPlayerId && !impSuccessorId)}
+                    onClick={recordImpKill}
+                  >
+                    {bmrRecorded ? 'Victime enregistrée' : 'Résoudre et enregistrer la victime'}
+                  </Button>
+                )}
                 {bmrRecorded && <p className="text-xs text-success">La décision et son résultat sont enregistrés dans la partie.</p>}
               </div>
             )}
@@ -877,20 +974,14 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                 <div className="flex items-center gap-3">
                   <RoleIcon characterId={lunaticSimulationCharacter.id} nameFr={lunaticSimulationCharacter.nameFr} size={42} />
                   <div>
-                    <p className="text-xs text-ink-2">Action simulée</p>
-                    <p className="text-sm">Comme {lunaticSimulationCharacter.nameFr}, choisissez {lunaticTargetCount === 1 ? 'un joueur' : `${lunaticTargetCount} joueurs`}.</p>
+                    <p className="text-xs text-ink-2">Écran privé du joueur</p>
+                    <p className="text-sm">Réveillez {actingPlayer?.name}, puis ouvrez l’écran présenté comme une action normale de {lunaticSimulationCharacter.nameFr}.</p>
                   </div>
                 </div>
-                <PlayerChoiceGrid
-                  players={game.players.filter((player) => player.alive)}
-                  selectedIds={bmrTargetIds}
-                  disabled={bmrRecorded}
-                  onSelect={toggleLunaticTarget}
-                />
-                <Button variant="secondary" disabled={bmrRecorded || bmrTargetIds.length !== lunaticTargetCount} onClick={recordLunaticSimulation}>
-                  {bmrRecorded ? 'Choix du Lunatique enregistré' : 'Enregistrer les choix du Lunatique'}
+                <Button variant="secondary" disabled={bmrRecorded} onClick={() => setShowLunaticPlayerAction(true)}>
+                  {bmrRecorded ? 'Choix privé enregistré' : `Ouvrir l’écran de ${lunaticSimulationCharacter.nameFr}`}
                 </Button>
-                <p className="text-xs text-ink-2">Ces choix sont conservés pour le MJ, sans tuer ni affecter les joueurs.</p>
+                {bmrRecorded && <p className="text-xs text-success">Le choix simulé est conservé pour le Conteur et sera transmis au vrai Démon.</p>}
               </div>
             )}
 
@@ -984,6 +1075,26 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                     </Button>
                   </div>
                 )}
+                {bmrCharacter.id === 'snakecharmer' && bmrTargetIds.length === 1 && game.players.find((player) => player.id === bmrTargetIds[0])?.realCharacterId === 'recluse' && (
+                  <div className="rounded-lg border border-warn/40 bg-warn/10 p-3">
+                    <p className="text-xs font-medium text-warn">Enregistrement facultatif du Reclus</p>
+                    <p className="mt-1 text-xs text-ink-2">Le Conteur peut décider que le Reclus est enregistré comme Démon pour ce pouvoir.</p>
+                    <div className="mt-2 flex gap-2">
+                      <Button variant={!recluseRegistersAsDemon ? 'primary' : 'secondary'} disabled={bmrRecorded} onClick={() => setRecluseRegistersAsDemon(false)}>Non</Button>
+                      <Button variant={recluseRegistersAsDemon ? 'primary' : 'secondary'} disabled={bmrRecorded} onClick={() => setRecluseRegistersAsDemon(true)}>Oui, comme Démon</Button>
+                    </div>
+                  </div>
+                )}
+                {bmrCharacter.id === 'professor' && bmrTargetIds.length === 1 && game.players.find((player) => player.id === bmrTargetIds[0])?.realCharacterId === 'spy' && (
+                  <div className="rounded-lg border border-warn/40 bg-warn/10 p-3">
+                    <p className="text-xs font-medium text-warn">Enregistrement facultatif de l’Espionne</p>
+                    <p className="mt-1 text-xs text-ink-2">Le Professeur ne la ressuscite que si vous l’enregistrez comme Villageoise pour ce pouvoir.</p>
+                    <div className="mt-2 flex gap-2">
+                      <Button variant={!spyRegistersAsTownsfolk ? 'primary' : 'secondary'} disabled={bmrRecorded} onClick={() => setSpyRegistersAsTownsfolk(false)}>Non</Button>
+                      <Button variant={spyRegistersAsTownsfolk ? 'primary' : 'secondary'} disabled={bmrRecorded} onClick={() => setSpyRegistersAsTownsfolk(true)}>Oui, Villageoise</Button>
+                    </div>
+                  </div>
+                )}
                 {(bmrCharacter.id === 'sailor' || bmrCharacter.id === 'innkeeper') && bmrTargetIds.length > 0 && (
                   <div>
                     <label className="block text-xs text-ink-2 mb-1">Qui est ivre ?</label>
@@ -1021,7 +1132,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
                 )}
               </div>
             )}
-            {game.scriptId === 'bad-moon-rising' && bmrCharacter?.id === 'godfather' && !game.godfatherKillDue && (
+            {(game.scriptId === 'bad-moon-rising' || game.scriptId === 'over-the-river') && bmrCharacter?.id === 'godfather' && !game.godfatherKillDue && (
               <div className="bg-surface-2 border border-border rounded-lg px-4 py-3 text-sm">Le Parrain ne tue pas cette nuit : aucun Paria n’est mort pendant la journée précédente.</div>
             )}
             {game.scriptId === 'bad-moon-rising' && bmrCharacter?.id === 'zombuul' && someoneDiedToday && (
@@ -1152,6 +1263,96 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
           ))}
         </div>
         <Button variant="primary" onClick={() => setSageRevealRequest(null)}>Information montrée</Button>
+      </div>
+    )}
+
+    {showImpPlayerAction && isImpKillAction && bmrCharacter?.id === 'imp' && (
+      <div
+        className="fixed inset-0 z-[70] bg-surface-0 flex flex-col items-center justify-center px-6 py-10 text-center"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Action privée du Diablotin"
+      >
+        {!impPrivateChoiceConfirmed ? (
+          <div className="w-full max-w-xl flex flex-col items-center gap-6">
+            <RoleIcon characterId="imp" nameFr="Diablotin" size={88} />
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-evil">Votre personnage</p>
+              <h1 className="mt-2 text-4xl font-semibold">Diablotin</h1>
+              <p className="mt-3 text-base text-ink-1">{bmrCharacter.fullDescription}</p>
+            </div>
+            <div className="w-full rounded-2xl border border-evil/40 bg-evil-bg/50 p-5">
+              <p className="text-lg font-medium">Choisissez un joueur à tuer cette nuit.</p>
+              <div className="mt-4">
+                <PlayerChoiceGrid
+                  players={game.players.filter((player) => player.alive)}
+                  selectedIds={impTargetId ? [impTargetId] : []}
+                  onSelect={handleImpTargetSelect}
+                />
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              disabled={!impTargetId}
+              onClick={() => setImpPrivateChoiceConfirmed(true)}
+            >
+              Confirmer mon choix
+            </Button>
+          </div>
+        ) : (
+          <div className="w-full max-w-md rounded-2xl border border-success/40 bg-success/10 p-8 flex flex-col items-center gap-5">
+            <p className="text-3xl font-semibold">Choix enregistré</p>
+            <p className="text-ink-1">Vous pouvez fermer les yeux et rendre l’iPad au Conteur.</p>
+            <Button variant="primary" onClick={() => setShowImpPlayerAction(false)}>Retour au Conteur</Button>
+          </div>
+        )}
+      </div>
+    )}
+
+    {showLunaticPlayerAction && isLunaticSimulation && lunaticSimulationCharacter && (
+      <div
+        className="fixed inset-0 z-[70] bg-surface-0 flex flex-col items-center justify-center px-6 py-10 text-center"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Action privée du ${lunaticSimulationCharacter.nameFr}`}
+      >
+        {!bmrRecorded ? (
+          <div className="w-full max-w-xl flex flex-col items-center gap-6">
+            <RoleIcon characterId={lunaticSimulationCharacter.id} nameFr={lunaticSimulationCharacter.nameFr} size={88} />
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-evil">Votre personnage</p>
+              <h1 className="mt-2 text-4xl font-semibold">{lunaticSimulationCharacter.nameFr}</h1>
+              <p className="mt-3 text-base text-ink-1">{lunaticSimulationCharacter.fullDescription}</p>
+            </div>
+            <div className="w-full rounded-2xl border border-evil/40 bg-evil-bg/50 p-5">
+              <p className="text-lg font-medium">
+                {lunaticSimulationCharacter.id === 'imp'
+                  ? 'Choisissez un joueur à tuer cette nuit.'
+                  : `Choisissez ${lunaticTargetCount === 1 ? 'un joueur' : `${lunaticTargetCount} joueurs`}.`}
+              </p>
+              <div className="mt-4">
+                <PlayerChoiceGrid
+                  players={game.players.filter((player) => player.alive)}
+                  selectedIds={bmrTargetIds}
+                  onSelect={toggleLunaticTarget}
+                />
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              disabled={bmrTargetIds.length !== lunaticTargetCount}
+              onClick={recordLunaticSimulation}
+            >
+              Confirmer mon choix
+            </Button>
+          </div>
+        ) : (
+          <div className="w-full max-w-md rounded-2xl border border-success/40 bg-success/10 p-8 flex flex-col items-center gap-5">
+            <p className="text-3xl font-semibold">Choix enregistré</p>
+            <p className="text-ink-1">Vous pouvez fermer les yeux et rendre l’iPad au Conteur.</p>
+            <Button variant="primary" onClick={() => setShowLunaticPlayerAction(false)}>Retour au Conteur</Button>
+          </div>
+        )}
       </div>
     )}
 

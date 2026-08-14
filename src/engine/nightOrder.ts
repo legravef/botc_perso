@@ -104,11 +104,21 @@ function buildCharacterStepRaw(game: Game, character: Character, player: Player)
   switch (character.id) {
     case 'clockmaker': {
       const number = calculateClockmakerNumber(game.players)
+      const registrationCharacters = [
+        game.players.some((candidate) => candidate.realCharacterId === 'spy') ? 'l’Espionne' : null,
+        game.players.some((candidate) => candidate.realCharacterId === 'recluse') ? 'le Reclus' : null,
+      ].filter((name): name is string => Boolean(name))
       return {
         ...base,
-        instruction: 'Montrez silencieusement la distance minimale entre le Démon et son Sbire (1 signifie qu’ils sont voisins).',
-        resolvedInfo: `Nombre à indiquer : ${number}`,
-        displayReveal: { kind: 'number', value: number },
+        instruction: game.scriptId === 'over-the-river'
+          ? registrationCharacters.length > 0
+            ? `Choisissez ci-dessous comment ${registrationCharacters.join(' et ')} ${registrationCharacters.length > 1 ? 'sont enregistrés' : 'est enregistré(e)'} pour cette interaction. L’app calculera ensuite la distance à montrer.`
+            : 'Aucun personnage ne peut fausser cette information : l’app calcule directement la distance entre le Démon et son Sbire (1 = voisins).'
+          : 'Montrez silencieusement la distance minimale entre le Démon et son Sbire (1 signifie qu’ils sont voisins).',
+        resolvedInfo: game.scriptId === 'over-the-river'
+          ? undefined
+          : `Nombre à indiquer : ${number}`,
+        displayReveal: game.scriptId === 'over-the-river' ? undefined : { kind: 'number', value: number },
       }
     }
     case 'chef': {
@@ -203,9 +213,11 @@ function buildCharacterStepRaw(game: Game, character: Character, player: Player)
         .filter((n): n is string => Boolean(n))
       return {
         ...base,
-        instruction: 'Indiquez-lui quels Parias sont en jeu (sans révéler qui les possède).',
-        resolvedInfo: names.length > 0 ? `Parias en jeu : ${names.join(', ')}.` : 'Aucun Paria en jeu.',
-        displayReveal: { kind: 'characters', characterIds: outsiders.flatMap((player) => player.realCharacterId ? [player.realCharacterId] : []), title: 'Parias en jeu' },
+        instruction: game.scriptId === 'over-the-river'
+          ? 'Indiquez-lui quels Parias sont enregistrés comme étant en jeu, sans révéler leurs détenteurs. Vous pouvez enregistrer l’Espionne comme Paria pour cette information.'
+          : 'Indiquez-lui quels Parias sont en jeu (sans révéler qui les possède).',
+        resolvedInfo: `${names.length > 0 ? `Parias réels en jeu : ${names.join(', ')}.` : 'Aucun Paria réel en jeu.'}${game.scriptId === 'over-the-river' ? ' Décidez séparément si vous ajoutez l’Espionne à l’information.' : ''}`,
+        displayReveal: game.scriptId === 'over-the-river' ? undefined : { kind: 'characters', characterIds: outsiders.flatMap((player) => player.realCharacterId ? [player.realCharacterId] : []), title: 'Parias en jeu' },
       }
     }
     case 'lunatic': {
@@ -248,7 +260,8 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
 
   // À 5 ou 6 joueurs en Trouble Brewing (Teensyville), les joueurs maléfiques
   // ne reçoivent pas les informations d'équipe et le Démon ne reçoit aucun bluff.
-  const isSupportedTeensyville = ['trouble-brewing', 'no-greater-joy'].includes(game.scriptId) && game.players.length <= 6
+  const isSupportedTeensyville = ['trouble-brewing', 'no-greater-joy', 'over-the-river'].includes(game.scriptId) && game.players.length <= 6
+  const usesFullLunaticIllusion = game.scriptId === 'bad-moon-rising'
   if (nightType === 'first' && !isSupportedTeensyville) {
     const demonPlayer = game.players.find((p) => {
       const character = p.realCharacterId ? getCharacterById(game.scriptId, p.realCharacterId) : undefined
@@ -302,6 +315,9 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
     // Pouvoir "une fois par partie" (Professeur, Assassin, Courtisane...) déjà utilisé cette
     // partie : ne plus réveiller ce joueur, il n'y a plus rien à faire pour lui.
     if (character.actionFrequency === 'once-per-game' && player.notes.some((note) => note.text.includes(`[BMR:${character.id}]`))) continue
+    // Après un échange, l'ancien Démon est désormais un Charmeur empoisonné. Il ne rejoue pas
+    // immédiatement pendant la même nuit : son premier nouveau réveil aura lieu la nuit suivante.
+    if (character.id === 'snakecharmer' && player.notes.some((note) => note.text.includes(`[OTR:snakecharmer:${game.nightNumber}]`))) continue
     if (nightType === 'first' && character.id === 'lunatic') {
       const believedDemon = game.preparation.lunaticBelievedDemonId
         ? getCharacterById(game.scriptId, game.preparation.lunaticBelievedDemonId)
@@ -313,35 +329,60 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
       const bluffNames = bluffIds
         .map((id) => getCharacterById(game.scriptId, id)?.nameFr)
         .filter((name): name is string => Boolean(name))
-      const configured = believedDemon && falseMinions.length > 0 && bluffNames.length === 3
-      ordered.push({
-        id: `lunatic-wake-${player.id}`,
-        kind: 'character',
-        characterId: 'lunatic',
-        playerIds: [player.id],
-        title: 'Réveil du Lunatique',
-        instruction: believedDemon
-          ? `Réveillez ${player.name}. Présentez-le comme ${believedDemon.nameFr}, sans jamais mentionner le Lunatique.`
-          : 'Préparation du Lunatique incomplète : choisissez d’abord le Démon qu’il croit être.',
-        orderValue: order,
-      })
-      ordered.push({
-        id: `lunatic-info-${player.id}`,
-        kind: 'demon-info',
-        characterId: null,
-        playerIds: [player.id],
-        title: 'Information du Démon',
-        instruction: configured
-          ? 'Réveillez le Démon. Montrez-lui ses Sbires ET ses 3 bluffs (personnages absents) — ne l’oubliez pas.'
-          : 'Préparation du Démon incomplète — retournez à la préparation avant de continuer.',
-        resolvedInfo: configured
-          ? `Sbires : ${falseMinions.join(', ')}. Bluffs : ${bluffNames.join(', ')}.`
-          : undefined,
-        bluffCharacterIds: bluffIds,
-        demonPlayerId: player.id,
-        perceivedDemonCharacterId: believedDemon?.id,
-        orderValue: order + 0.01,
-      })
+      const configured = believedDemon && (!usesFullLunaticIllusion || (falseMinions.length > 0 && bluffNames.length === 3))
+      // En Teensyville, le Lunatique a déjà vu son faux jeton lors de la révélation
+      // et le Diablotin n'agit pas pendant la première nuit : inutile de le réveiller.
+      if (!isSupportedTeensyville) {
+        ordered.push({
+          id: `lunatic-wake-${player.id}`,
+          kind: 'character',
+          characterId: 'lunatic',
+          playerIds: [player.id],
+          title: 'Réveil du Lunatique',
+          instruction: believedDemon
+            ? `Réveillez ${player.name}. Présentez-le comme ${believedDemon.nameFr}, sans jamais mentionner le Lunatique.`
+            : 'Préparation du Lunatique incomplète : choisissez d’abord le Démon qu’il croit être.',
+          orderValue: order,
+        })
+      }
+      if (usesFullLunaticIllusion && !isSupportedTeensyville) {
+        ordered.push({
+          id: `lunatic-info-${player.id}`,
+          kind: 'demon-info',
+          characterId: null,
+          playerIds: [player.id],
+          title: 'Information du Démon',
+          instruction: configured
+            ? 'Réveillez le Démon. Montrez-lui ses Sbires ET ses 3 bluffs (personnages absents) — ne l’oubliez pas.'
+            : 'Préparation du Démon incomplète — retournez à la préparation avant de continuer.',
+          resolvedInfo: configured
+            ? `Sbires : ${falseMinions.join(', ')}. Bluffs : ${bluffNames.join(', ')}.`
+            : undefined,
+          bluffCharacterIds: bluffIds,
+          demonPlayerId: player.id,
+          perceivedDemonCharacterId: believedDemon?.id,
+          orderValue: order + 0.01,
+        })
+      }
+      if (isSupportedTeensyville) {
+        const realDemon = game.players.find((candidate) => {
+          const candidateCharacter = candidate.realCharacterId ? getCharacterById(game.scriptId, candidate.realCharacterId) : undefined
+          return candidate.alive && candidateCharacter?.category === 'demon'
+        })
+        if (realDemon) {
+          ordered.push({
+            id: `lunatic-identity-${realDemon.id}`,
+            kind: 'demon-info',
+            characterId: null,
+            playerIds: [realDemon.id],
+            title: 'Lunatique — information du Démon',
+            instruction: `Montrez au vrai Démon que ${player.name} est le Lunatique. Ne montrez ni Sbire ni bluff en Teensyville.`,
+            resolvedInfo: `Lunatique : ${player.name}.`,
+            displayReveal: { kind: 'players', playerIds: [player.id], title: 'Le Lunatique' },
+            orderValue: order,
+          })
+        }
+      }
       continue
     }
     ordered.push({ ...buildCharacterStep(game, character, player), orderValue: order })
@@ -370,7 +411,7 @@ export function generateNightSteps(game: Game, nightType: NightType): NightStep[
           displayReveal: { kind: 'players', playerIds: targetIds, title: 'Les choix du Lunatique' },
           // Après l'Exorciste (8), mais avant les Démons (à partir de 9) : le Démon
           // doit déjà savoir s'il a été exorcisé avant de recevoir les choix du Lunatique.
-          orderValue: 8.5,
+          orderValue: order + 0.5,
         })
       }
     }

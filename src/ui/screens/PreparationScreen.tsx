@@ -103,7 +103,10 @@ export function PreparationScreen() {
   // Dans Trouble Brewing, les « Demon info » (identité des Sbires et trois
   // bluffs) ne sont données qu'à partir de 7 joueurs. À 5 ou 6, la partie
   // suit les règles Teensyville.
-  const isSupportedTeensyville = ['trouble-brewing', 'no-greater-joy'].includes(game.scriptId) && game.players.length <= 6
+  const isSupportedTeensyville = ['trouble-brewing', 'no-greater-joy', 'over-the-river'].includes(game.scriptId) && game.players.length <= 6
+  // En Teensyville, le Lunatique croit toujours être le Démon et joue ses faux
+  // réveils, mais il ne reçoit ni fausse équipe ni bluffs de première nuit.
+  const usesFullLunaticIllusion = needsLunatic && game.scriptId === 'bad-moon-rising'
   const needsDemonBluffs = !!demon && !isSupportedTeensyville
 
   const scriptCharacters = getCharactersForScript(game.scriptId)
@@ -133,8 +136,8 @@ export function PreparationScreen() {
     (!needsFortuneTeller || !!game.preparation.fortuneTellerRedHerringPlayerId) &&
     (!needsDrunk || !!game.preparation.drunkBelievedCharacterId) &&
     (!needsLunatic || !!game.preparation.lunaticBelievedDemonId) &&
-    (!needsLunatic || lunaticMinionPlayerIds.length === lunaticMinionSlots) &&
-    (!needsLunatic || lunaticBluffCharacterIds.length === 3) &&
+    (!usesFullLunaticIllusion || lunaticMinionPlayerIds.length === lunaticMinionSlots) &&
+    (!usesFullLunaticIllusion || lunaticBluffCharacterIds.length === 3) &&
     (!needsDemonBluffs || game.preparation.impBluffCharacterIds.length === 3) &&
     (!needsGrandmother || !!game.preparation.grandmotherRevealPlayerId)
 
@@ -230,13 +233,16 @@ export function PreparationScreen() {
               Démon le tue plus tard, la Grand-mère meurt aussi — l'appli surveille ce lien pour vous.
             </p>
             <PlayerChoiceGrid
-              players={goodPlayers.filter((p) => p.realCharacterId !== 'grandmother')}
+              players={game.players.filter((p) => p.realCharacterId !== 'grandmother' && (p.alignment === 'good' || p.realCharacterId === 'spy'))}
               selectedIds={game.preparation.grandmotherRevealPlayerId ? [game.preparation.grandmotherRevealPlayerId] : []}
               onSelect={(playerId) => {
                 setPreparation({ grandmotherRevealPlayerId: playerId })
                 applyNightlyReminder('grandmother', 'Lien (Grand-mère)', playerId)
               }}
             />
+            {game.scriptId === 'over-the-river' && (
+              <p className="mt-2 text-xs text-ink-2">L’Espionne est proposée car elle peut être enregistrée comme bonne et Villageoise pour le pouvoir de la Grand-mère.</p>
+            )}
           </div>
         )}
 
@@ -266,7 +272,11 @@ export function PreparationScreen() {
               selectedIds={game.preparation.lunaticBelievedDemonId ? [game.preparation.lunaticBelievedDemonId] : []}
               onSelect={(characterId) => setPreparation({ lunaticBelievedDemonId: characterId })}
             />
-            <div className="mt-4">
+            {!usesFullLunaticIllusion ? (
+              <p className="mt-4 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-ink-2">
+                Format Teensyville : ne montrez au Lunatique ni faux Sbire ni bluff. Le vrai Démon apprend tout de même qui est le Lunatique grâce à son pouvoir.
+              </p>
+            ) : <><div className="mt-4">
               <p className="text-xs text-ink-2 mb-2">
                 Faux Sbires à lui montrer ({lunaticMinionPlayerIds.length}/{lunaticMinionSlots}) — les joueurs indiqués ne voient rien à ce moment-là.
               </p>
@@ -284,6 +294,7 @@ export function PreparationScreen() {
                 onSelect={(characterId) => setPreparation({ lunaticBluffCharacterIds: toggleCapped(lunaticBluffCharacterIds, characterId, 3) })}
               />
             </div>
+            </>}
           </div>
         )}
 

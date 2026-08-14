@@ -36,6 +36,7 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
   const [virginNominatorId, setVirginNominatorId] = useState('')
   const [slayerId, setSlayerId] = useState('')
   const [slayerTargetId, setSlayerTargetId] = useState('')
+  const [slayerRecluseRegistersAsDemon, setSlayerRecluseRegistersAsDemon] = useState(false)
   const [dayActionOutcome, setDayActionOutcome] = useState<string | null>(null)
   const [forcedExecutionPlayerId, setForcedExecutionPlayerId] = useState('')
   const [artistQuestion, setArtistQuestion] = useState('')
@@ -74,7 +75,7 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
     const character = player.realCharacterId ? getCharacterById(game.scriptId, player.realCharacterId) : undefined
     return character?.category === 'townsfolk'
   })
-  const availableSlayers = game.scriptId === 'trouble-brewing'
+  const availableSlayers = ['trouble-brewing', 'over-the-river'].includes(game.scriptId)
     ? livingPlayers.filter((player) => player.realCharacterId === 'slayer' && !player.reminders.some((reminder) => reminder.sourceCharacterId === 'slayer'))
     : []
   const availableArtists = game.scriptId === 'no-greater-joy'
@@ -103,16 +104,21 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
     if (!game) return
     const target = game.players.find((player) => player.id === slayerTargetId)
     const impaired = isImpaired(slayerId)
-    addReminder(slayerId, 'Tir utilisé (Chasseur)', 'slayer')
-    if (!impaired && target?.realCharacterId && getCharacterById(game.scriptId, target.realCharacterId)?.category === 'demon') {
+    const slayerName = getCharacterById(game.scriptId, 'slayer')?.nameFr ?? 'Pourfendeuse'
+    const targetCharacter = target?.realCharacterId ? getCharacterById(game.scriptId, target.realCharacterId) : undefined
+    const targetRegistersAsDemon = targetCharacter?.category === 'demon'
+      || (target?.realCharacterId === 'recluse' && slayerRecluseRegistersAsDemon)
+    addReminder(slayerId, `Pouvoir utilisé (${slayerName})`, 'slayer')
+    if (!impaired && target && targetRegistersAsDemon) {
       declareDeath(slayerTargetId)
-      addNote(slayerId, `Chasseur : tire sur ${target.name}, qui est le Démon.`, 'power-used')
-      setDayActionOutcome(`${target.name} était le Démon et meurt du tir du Chasseur.`)
+      addNote(slayerId, `${slayerName} : vise ${target.name}, enregistré(e) comme Démon.`, 'power-used')
+      setDayActionOutcome(`${target.name} est enregistré(e) comme Démon et meurt grâce au pouvoir de la ${slayerName}.`)
     } else {
-      addNote(slayerId, `Chasseur : tire sur ${target?.name ?? 'un joueur'} sans effet.`, 'power-used')
-      setDayActionOutcome(impaired ? 'Le Chasseur est ivre ou empoisonné : son tir est sans effet.' : `${target?.name ?? 'La cible'} n'est pas le Démon : le tir est sans effet.`)
+      addNote(slayerId, `${slayerName} : vise ${target?.name ?? 'un joueur'} sans effet.`, 'power-used')
+      setDayActionOutcome(impaired ? `${slayerName} est ivre ou empoisonnée : son pouvoir est sans effet.` : `${target?.name ?? 'La cible'} n'est pas enregistré(e) comme Démon : aucun effet.`)
     }
     setSlayerTargetId('')
+    setSlayerRecluseRegistersAsDemon(false)
   }
 
   function resolveArtistQuestion() {
@@ -257,8 +263,19 @@ export function DayScreen({ onOpenGrimoire }: { onOpenGrimoire: () => void }) {
               <div className="flex flex-col gap-2 border-t border-accent/25 pt-4">
                 <p className="text-sm font-medium">Chasseur — tir unique</p>
                 <PlayerChoiceGrid players={availableSlayers} selectedIds={slayerId ? [slayerId] : []} onSelect={setSlayerId} />
-                {slayerId && <PlayerChoiceGrid players={livingPlayers.filter((player) => player.id !== slayerId)} selectedIds={slayerTargetId ? [slayerTargetId] : []} onSelect={setSlayerTargetId} />}
-                <Button variant="secondary" disabled={!slayerId || !slayerTargetId} onClick={resolveSlayerShot}>Résoudre le tir du Chasseur</Button>
+                {slayerId && <PlayerChoiceGrid players={livingPlayers.filter((player) => player.id !== slayerId)} selectedIds={slayerTargetId ? [slayerTargetId] : []} onSelect={(playerId) => { setSlayerTargetId(playerId); setSlayerRecluseRegistersAsDemon(false) }} />}
+                {game.players.find((player) => player.id === slayerTargetId)?.realCharacterId === 'recluse' && (
+                  <div className="rounded-lg border border-warn/40 bg-warn/10 p-3">
+                    <p className="text-xs text-ink-2">Le Reclus est-il enregistré comme Démon pour ce pouvoir ?</p>
+                    <div className="mt-2 flex gap-2">
+                      <Button variant={!slayerRecluseRegistersAsDemon ? 'primary' : 'secondary'} onClick={() => setSlayerRecluseRegistersAsDemon(false)}>Non</Button>
+                      <Button variant={slayerRecluseRegistersAsDemon ? 'primary' : 'secondary'} onClick={() => setSlayerRecluseRegistersAsDemon(true)}>Oui</Button>
+                    </div>
+                  </div>
+                )}
+                <Button variant="secondary" disabled={!slayerId || !slayerTargetId} onClick={resolveSlayerShot}>
+                  {game.scriptId === 'over-the-river' ? 'Résoudre le pouvoir de la Pourfendeuse' : 'Résoudre le tir du Chasseur'}
+                </Button>
               </div>
             )}
             {artistPlayer && (

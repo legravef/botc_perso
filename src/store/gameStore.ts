@@ -231,6 +231,8 @@ interface GameStore {
   revivePlayer: (playerId: string) => void
   toggleGhostVote: (playerId: string) => void
   setPlayerCharacter: (playerId: string, characterId: string) => void
+  /** Over the River — échange atomique du Charmeur de serpents avec le joueur enregistré comme Démon. */
+  resolveSnakeCharmerSwap: (snakeCharmerPlayerId: string, demonPlayerId: string) => void
   /** Bad Moon Rising — Bras droit : change l'alignement réel d'un joueur (indépendamment de son personnage). */
   setPlayerAlignment: (playerId: string, alignment: Player['alignment']) => void
   /** Bad Moon Rising — Po : force (ou lève) l'obligation de tuer 3 joueurs au prochain réveil. */
@@ -632,6 +634,60 @@ export const useGameStore = create<GameStore>((set, get) => {
           }),
         }),
         { targetIds: [playerId] },
+      ),
+
+    resolveSnakeCharmerSwap: (snakeCharmerPlayerId, demonPlayerId) =>
+      commit(
+        'player.updated',
+        (g) => {
+          const snakeCharmer = g.players.find((player) => player.id === snakeCharmerPlayerId)
+          const chosenDemon = g.players.find((player) => player.id === demonPlayerId)
+          if (!snakeCharmer?.realCharacterId || !chosenDemon?.realCharacterId) return g
+          const chosenCharacter = getCharacterById(g.scriptId, chosenDemon.realCharacterId)
+          const now = new Date().toISOString()
+          return {
+            ...g,
+            activeDemonId: chosenCharacter?.category === 'demon' ? snakeCharmerPlayerId : g.activeDemonId,
+            players: g.players.map((player) => {
+              if (player.id === snakeCharmerPlayerId) {
+                return {
+                  ...player,
+                  realCharacterId: chosenDemon.realCharacterId,
+                  perceivedCharacterId: null,
+                  alignment: chosenDemon.alignment,
+                  notes: [...player.notes, {
+                    id: nanoid(),
+                    text: `Charmeur de serpents : devient ${chosenDemon.realCharacterId} et échange son alignement avec ${chosenDemon.name}.`,
+                    category: 'information' as const,
+                    createdAt: now,
+                  }],
+                }
+              }
+              if (player.id === demonPlayerId) {
+                return {
+                  ...player,
+                  realCharacterId: snakeCharmer.realCharacterId,
+                  perceivedCharacterId: null,
+                  alignment: snakeCharmer.alignment,
+                  reminders: [...player.reminders, {
+                    id: nanoid(),
+                    label: 'Empoisonné (Charmeur de serpents — permanent)',
+                    sourceCharacterId: 'snakecharmer',
+                    createdAt: now,
+                  }],
+                  notes: [...player.notes, {
+                    id: nanoid(),
+                    text: `[OTR:snakecharmer:${g.nightNumber}] Devient le Charmeur de serpents empoisonné après l’échange avec ${snakeCharmer.name}.`,
+                    category: 'information' as const,
+                    createdAt: now,
+                  }],
+                }
+              }
+              return player
+            }),
+          }
+        },
+        { actorId: snakeCharmerPlayerId, targetIds: [demonPlayerId] },
       ),
 
     setPlayerAlignment: (playerId, alignment) =>

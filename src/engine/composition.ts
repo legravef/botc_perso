@@ -99,6 +99,9 @@ export function validateComposition(
   if (scriptId === 'no-greater-joy' && playerCount !== 6) {
     errors.push(`No Greater Joy est dédié aux parties de 6 joueurs (actuellement ${playerCount}).`)
   }
+  if (scriptId === 'over-the-river' && ![5, 6].includes(playerCount)) {
+    errors.push(`Over the River est dédié aux parties de 5 ou 6 joueurs (actuellement ${playerCount}).`)
+  }
 
   if (playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
     errors.push(

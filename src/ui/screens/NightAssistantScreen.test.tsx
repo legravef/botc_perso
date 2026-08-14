@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { NightAssistantScreen } from './NightAssistantScreen'
 import { useGameStore } from '@/store'
 import { createPlayer } from '@/lib/factories'
@@ -7,6 +7,70 @@ import { createPlayer } from '@/lib/factories'
 beforeEach(() => {
   window.localStorage.clear()
   useGameStore.setState({ game: null, history: [], savedGames: [], canUndo: false })
+})
+
+function chooseImpTargetPrivately(playerName: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'Ouvrir l’écran de Diablotin' }))
+  const dialog = screen.getByRole('dialog', { name: 'Action privée du Diablotin' })
+  fireEvent.click(within(dialog).getByRole('button', { name: playerName }))
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmer mon choix' }))
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Retour au Conteur' }))
+}
+
+describe('NightAssistantScreen — Over the River : Horloger', () => {
+  it('demande les enregistrements présents, calcule la distance et ouvre l’affichage joueur', () => {
+    const players = ['Diablotin', 'Horloger', 'Reclus', 'Espionne', 'Bon 1', 'Bon 2']
+      .map((name, seat) => createPlayer(name, seat))
+    const characterIds = ['imp', 'clockmaker', 'recluse', 'spy', 'innkeeper', 'professor']
+
+    useGameStore.getState().createGame('over-the-river')
+    useGameStore.getState().setPlayers(players)
+    players.forEach((player, index) => useGameStore.getState().setPlayerCharacter(player.id, characterIds[index]!))
+    useGameStore.getState().setPhase('night.first')
+
+    render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+
+    expect(screen.getByText('Comment l’Espionne est-elle enregistrée pour cette information ?')).toBeInTheDocument()
+    expect(screen.getByText('Comment le Reclus est-il enregistré pour cette information ?')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Montrer directement/ })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Comme bonne, pas Sbire' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Comme Sbire' })[1]!)
+
+    expect(screen.getByText('2 pas')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Montrer directement/ }))
+    expect(screen.getByText('Nombre à montrer silencieusement')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+  })
+})
+
+describe('NightAssistantScreen — Over the River : Lunatique', () => {
+  it('sépare les consignes du Conteur de l’écran privé présenté comme le Diablotin', () => {
+    const lunatic = createPlayer('Laure', 0)
+    const imp = createPlayer('Arthur', 1)
+
+    useGameStore.getState().createGame('over-the-river')
+    useGameStore.getState().setPlayers([lunatic, imp])
+    useGameStore.getState().setPlayerCharacter(lunatic.id, 'lunatic')
+    useGameStore.getState().setPlayerCharacter(imp.id, 'imp')
+    useGameStore.getState().setPreparation({ lunaticBelievedDemonId: 'imp' })
+    useGameStore.getState().setPhase('night.other')
+
+    render(<NightAssistantScreen onOpenGrimoire={() => {}} />)
+
+    expect(screen.getByText(/Ses choix sont simulés/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Ouvrir l’écran de Diablotin' }))
+
+    const playerDialog = screen.getByRole('dialog', { name: 'Action privée du Diablotin' })
+    expect(within(playerDialog).getByRole('heading', { name: 'Diablotin' })).toBeInTheDocument()
+    expect(within(playerDialog).getByText('Choisissez un joueur à tuer cette nuit.')).toBeInTheDocument()
+    expect(within(playerDialog).queryByText(/Lunatique|simul/i)).not.toBeInTheDocument()
+    fireEvent.click(within(playerDialog).getByRole('button', { name: imp.name }))
+    fireEvent.click(within(playerDialog).getByRole('button', { name: 'Confirmer mon choix' }))
+
+    expect(within(playerDialog).getByText('Choix enregistré')).toBeInTheDocument()
+    expect(useGameStore.getState().game?.lunaticTargetIds).toEqual([imp.id])
+  })
 })
 
 describe('NightAssistantScreen Mayor', () => {
@@ -24,10 +88,10 @@ describe('NightAssistantScreen Mayor', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
     expect(screen.getByText('Diablotin')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: marc!.name }))
+    chooseImpTargetPrivately(marc!.name)
     expect(screen.getByText(/Le Maire peut rediriger/)).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: nina!.name })[1]!)
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la victime' }))
+    fireEvent.click(screen.getByRole('button', { name: nina!.name }))
+    fireEvent.click(screen.getByRole('button', { name: 'Résoudre et enregistrer la victime' }))
 
     const players = useGameStore.getState().game!.players
     expect(players.find((player) => player.id === marc!.id)?.alive).toBe(true)
@@ -71,11 +135,11 @@ describe('NightAssistantScreen — starpass du Diablotin', () => {
 
     // Étape 2/2 : le Diablotin (Arthur) se cible lui-même.
     expect(screen.getByText('Diablotin')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: `${arthur.name} (vous-même)` }))
+    chooseImpTargetPrivately(arthur.name)
     // Un seul Sbire vivant (Nina) : successeur auto-sélectionné.
     expect(screen.getByText(new RegExp(`Successeur automatique.*${nina.name}`))).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la victime' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Résoudre et enregistrer la victime' }))
 
     // Le bug reproduit ici : sans le correctif, on tombe sur cet écran et on y reste bloqué.
     expect(screen.queryByText('Aucun personnage à réveiller cette nuit.')).not.toBeInTheDocument()
@@ -105,8 +169,8 @@ describe('NightAssistantScreen — Gardien', () => {
     // L'Empoisonneur joue, puis le Diablotin : le Gardien vivant n'est jamais une étape régulière.
     fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
     expect(screen.getByText('Diablotin')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: nina!.name }))
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer la victime' }))
+    chooseImpTargetPrivately(nina!.name)
+    fireEvent.click(screen.getByRole('button', { name: 'Résoudre et enregistrer la victime' }))
 
     expect(screen.getByText(`Gardien — ${nina!.name}`)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: arthur!.name }))

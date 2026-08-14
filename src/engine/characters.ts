@@ -27,17 +27,36 @@ export function calculateEmpathNumber(
   return [left, right].filter(isEvil).length
 }
 
-/** Distance minimale en nombre de pas entre le Démon et un Sbire (1 = voisins). */
-export function calculateClockmakerNumber(players: Player[]): number {
+export interface ClockmakerRegistrations {
+  /** Par défaut, l'Espionne est enregistrée normalement comme Sbire. */
+  spyRegistersAsMinion?: boolean
+  /** Par défaut, le Reclus est enregistré normalement et ne compte pas. */
+  recluseRegistersAs?: 'good' | 'minion' | 'demon'
+}
+
+/** Distance minimale en nombre de pas entre un Démon et un Sbire enregistrés (1 = voisins). */
+export function calculateClockmakerNumber(
+  players: Player[],
+  registrations: ClockmakerRegistrations = {},
+): number {
   const ordered = [...players].sort((a, b) => a.seat - b.seat)
-  const demonIndex = ordered.findIndex((player) => player.alignment === 'evil' && player.realCharacterId === 'imp')
+  const spyRegistersAsMinion = registrations.spyRegistersAsMinion ?? true
+  const recluseRegistersAs = registrations.recluseRegistersAs ?? 'good'
+  const demonIndexes = ordered
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => player.realCharacterId === 'imp' || (player.realCharacterId === 'recluse' && recluseRegistersAs === 'demon'))
+    .map(({ index }) => index)
   const minionIndexes = ordered
     .map((player, index) => ({ player, index }))
-    .filter(({ player }) => player.alignment === 'evil' && ['baron', 'scarlet-woman'].includes(player.realCharacterId ?? ''))
+    .filter(({ player }) => {
+      if (player.realCharacterId === 'recluse') return recluseRegistersAs === 'minion'
+      if (player.realCharacterId === 'spy') return spyRegistersAsMinion
+      return player.alignment === 'evil' && ['baron', 'scarlet-woman', 'godfather'].includes(player.realCharacterId ?? '')
+    })
     .map(({ index }) => index)
-  if (demonIndex < 0 || minionIndexes.length === 0) return 0
-  return Math.min(...minionIndexes.map((index) => {
-    const direct = Math.abs(index - demonIndex)
+  if (demonIndexes.length === 0 || minionIndexes.length === 0) return 0
+  return Math.min(...demonIndexes.flatMap((demonIndex) => minionIndexes.map((minionIndex) => {
+    const direct = Math.abs(minionIndex - demonIndex)
     return Math.min(direct, ordered.length - direct)
-  }))
+  })))
 }

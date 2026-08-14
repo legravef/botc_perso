@@ -39,6 +39,7 @@ Object.assign(ROLE_ICONS, {
   sage: 'https://release.botc.app/resources/characters/snv/sage_g.webp',
   artist: 'https://release.botc.app/resources/characters/snv/artist_g.webp',
   klutz: 'https://release.botc.app/resources/characters/snv/klutz_g.webp',
+  snakecharmer: 'https://release.botc.app/resources/characters/snv/snakecharmer_g.webp',
 })
 
 /** URL de l'icône d'un personnage, ou undefined si aucune icône n'est fournie pour cet id. */

@@ -122,7 +122,9 @@ export function CompositionSetupScreen() {
       const lockedIds = [...selected].filter((id) => locked.has(id))
       const result = generateRandomComposition({ playerCount, scriptId, lockedCharacterIds: lockedIds })
       const delta: -1 | 0 | 1 = result.characterIds.includes('godfather') ? 1 : 0
-      setSelected(new Set(result.characterIds))
+      const drawn = new Set(result.characterIds)
+      setSelected(delta === 0 ? drawn : rebalanceGodfather(drawn, 0, delta))
+      previousGodfatherDelta.current = delta
       setGodfatherDelta(delta)
       setGodfatherOutsiderDelta(delta)
       setRandomError(null)
@@ -136,7 +138,9 @@ export function CompositionSetupScreen() {
       const lockedIds = [...selected].filter((id) => locked.has(id))
       const result = generateSuggestedComposition({ playerCount, scriptId, level, lockedCharacterIds: lockedIds })
       const delta: -1 | 0 | 1 = result.characterIds.includes('godfather') ? 1 : 0
-      setSelected(new Set(result.characterIds))
+      const drawn = new Set(result.characterIds)
+      setSelected(delta === 0 ? drawn : rebalanceGodfather(drawn, 0, delta))
+      previousGodfatherDelta.current = delta
       setGodfatherDelta(delta)
       setGodfatherOutsiderDelta(delta)
       setRandomError(null)
@@ -196,6 +200,8 @@ export function CompositionSetupScreen() {
           <p className="text-xs text-ink-2 max-w-2xl">
             {scriptId === 'no-greater-joy'
               ? 'Scénario Teensyville officiel : les tirages restent limités à ses 11 personnages et respectent automatiquement la règle spéciale du Baron à 6 joueurs.'
+              : scriptId === 'over-the-river'
+                ? 'Scénario Teensyville officiel pour 5 ou 6 joueurs. Le Parrain impose de choisir une variation valide du nombre de Parias.'
               : LEVEL_CAPTIONS[level]}
           </p>
           <div className="flex flex-wrap items-center gap-3">
@@ -262,12 +268,12 @@ export function CompositionSetupScreen() {
 
         <CompositionSummary composition={composition} />
 
-        {scriptId === 'bad-moon-rising' && selected.has('godfather') && (
+        {(scriptId === 'bad-moon-rising' || scriptId === 'over-the-river') && selected.has('godfather') && (
           <section className="bg-warn/10 border border-warn/40 rounded-xl p-4">
             <p className="text-sm font-medium">Parrain — variation de composition</p>
             <p className="text-xs text-ink-2 mt-1">Choisissez le +1 ou -1 Paria imposé par le Parrain avant d'attribuer les rôles.</p>
             <div className="flex gap-2 mt-3">
-              <Button variant={godfatherDelta === -1 ? 'primary' : 'secondary'} onClick={() => setGodfatherDelta(-1)}>−1 Paria</Button>
+              <Button variant={godfatherDelta === -1 ? 'primary' : 'secondary'} disabled={playerCount === 5} onClick={() => setGodfatherDelta(-1)}>−1 Paria</Button>
               <Button variant={godfatherDelta === 1 ? 'primary' : 'secondary'} onClick={() => setGodfatherDelta(1)}>+1 Paria</Button>
             </div>
           </section>

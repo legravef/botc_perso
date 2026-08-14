@@ -18,8 +18,12 @@ export function PlayersSetupScreen() {
   const setPhase = useGameStore((s) => s.setPhase)
 
   const fixedPlayerCount = game?.scriptId === 'no-greater-joy' ? 6 : null
-  const [playerCount, setPlayerCount] = useState(() => fixedPlayerCount ??
-    Math.min(Math.max(game?.players.length || 7, MIN_PLAYERS), MAX_PLAYERS),
+  const scriptMinimum = game?.scriptId === 'over-the-river' ? 5 : MIN_PLAYERS
+  const scriptMaximum = game?.scriptId === 'over-the-river' ? 6 : MAX_PLAYERS
+  const [playerCount, setPlayerCount] = useState(() =>
+    fixedPlayerCount ?? (game?.scriptId === 'over-the-river'
+      ? 6
+      : Math.min(Math.max(game?.players.length || 7, MIN_PLAYERS), MAX_PLAYERS)),
   )
   const [slots, setSlots] = useState<NameSlot[]>(() => {
     if (game && game.players.length > 0) {
@@ -109,11 +113,11 @@ export function PlayersSetupScreen() {
         <section>
           <label className="block text-sm text-ink-2 mb-2">Nombre de joueurs</label>
           <div className="flex items-center gap-3">
-            <Button variant="secondary" disabled={fixedPlayerCount !== null} onClick={() => setPlayerCount((n) => Math.max(MIN_PLAYERS, n - 1))}>
+              <Button variant="secondary" disabled={fixedPlayerCount !== null || playerCount <= scriptMinimum} onClick={() => setPlayerCount((n) => Math.max(scriptMinimum, n - 1))}>
               −
             </Button>
             <span className="text-2xl font-semibold w-12 text-center">{playerCount}</span>
-            <Button variant="secondary" disabled={fixedPlayerCount !== null} onClick={() => setPlayerCount((n) => Math.min(MAX_PLAYERS, n + 1))}>
+              <Button variant="secondary" disabled={fixedPlayerCount !== null || playerCount >= scriptMaximum} onClick={() => setPlayerCount((n) => Math.min(scriptMaximum, n + 1))}>
               +
             </Button>
           </div>
@@ -128,7 +132,10 @@ export function PlayersSetupScreen() {
           {fixedPlayerCount !== null && (
             <p className="mt-3 text-sm text-accent">No Greater Joy est un scénario Teensyville conçu spécialement pour 6 joueurs.</p>
           )}
-          {(game?.scriptId === 'trouble-brewing' || game?.scriptId === 'no-greater-joy') && playerCount <= 6 && (
+          {game?.scriptId === 'over-the-river' && (
+            <p className="mt-3 text-sm text-accent">Over the River est un scénario Teensyville conçu pour 5 ou 6 joueurs.</p>
+          )}
+          {(['trouble-brewing', 'no-greater-joy', 'over-the-river'].includes(game?.scriptId ?? '')) && playerCount <= 6 && (
             <div className="mt-4 rounded-lg border border-warn/40 bg-warn/10 px-4 py-3 text-sm">
               <p className="font-medium">Format Teensyville</p>
               <p className="mt-1 text-ink-2">

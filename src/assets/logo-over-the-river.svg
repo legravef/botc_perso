@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 180" role="img" aria-labelledby="title">
+  <title id="title">Over the River</title>
+  <path d="M32 128c62-38 112 38 174 0s112 38 174 0 68-11 68-11" fill="none" stroke="#64a9cf" stroke-width="9" stroke-linecap="round" opacity=".9"/>
+  <path d="M32 150c62-38 112 38 174 0s112 38 174 0 68-11 68-11" fill="none" stroke="#a9d8e8" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+  <text x="240" y="83" text-anchor="middle" fill="#e8d39b" font-family="Georgia,serif" font-size="53">Over the River</text>
+</svg>
