@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Assistant Conteur — Guide express des joueurs</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #282119;
+        --muted: #584b3f;
+        --wine: #712d35;
+        --violet: #5b3b77;
+        --violet-dark: #24152f;
+        --gold: #c79842;
+        --good: #326eae;
+        --evil: #a53638;
+        --paper: #efe0bd;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        background: #16171f;
+        color: var(--ink);
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      .sheet {
+        position: relative;
+        width: 210mm;
+        height: 297mm;
+        overflow: hidden;
+        background-color: var(--paper);
+        background-image: url("./assistant-conteur-parchemin.png");
+        background-size: 100% 100%;
+        background-position: center;
+        background-repeat: no-repeat;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .panel {
+        position: absolute;
+        z-index: 2;
+      }
+
+      .top-left {
+        left: 17mm;
+        top: 28mm;
+        width: 77mm;
+      }
+
+      .top-right {
+        left: 105mm;
+        top: 28mm;
+        width: 70mm;
+      }
+
+      .bottom-left {
+        left: 17mm;
+        top: 154mm;
+        width: 70mm;
+      }
+
+      .bottom-right {
+        left: 106mm;
+        top: 181mm;
+        width: 75mm;
+      }
+
+      .eyebrow {
+        margin: 0 0 1.5mm;
+        color: var(--violet);
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 2.2mm;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+        color: var(--wine);
+        font-weight: 600;
+        letter-spacing: 0.025em;
+        line-height: 0.96;
+        text-align: center;
+        text-wrap: balance;
+      }
+
+      h1 {
+        font-size: 5.7mm;
+      }
+
+      h2 {
+        font-size: 5.1mm;
+      }
+
+      .title-rule {
+        display: flex;
+        align-items: center;
+        gap: 2mm;
+        margin: 2.2mm 0 3mm;
+        color: var(--wine);
+      }
+
+      .title-rule::before,
+      .title-rule::after {
+        content: "";
+        height: 0.35mm;
+        flex: 1;
+        background: currentColor;
+        opacity: 0.75;
+      }
+
+      .title-rule span {
+        display: block;
+        width: 2.2mm;
+        height: 2.2mm;
+        border: 0.35mm solid currentColor;
+        transform: rotate(45deg);
+      }
+
+      p {
+        margin: 0 0 2.25mm;
+        font-size: 2.72mm;
+        line-height: 1.25;
+        text-align: justify;
+        text-wrap: pretty;
+        hyphens: auto;
+      }
+
+      p:last-child {
+        margin-bottom: 0;
+      }
+
+      .lead::first-letter {
+        float: left;
+        margin: -0.9mm 1.2mm -0.4mm 0;
+        color: var(--wine);
+        font-size: 8.5mm;
+        font-weight: 700;
+        line-height: 0.9;
+      }
+
+      strong {
+        color: #231a14;
+        font-weight: 700;
+      }
+
+      .team {
+        white-space: nowrap;
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 0.91em;
+        font-weight: 750;
+        letter-spacing: 0.01em;
+      }
+
+      .team.good {
+        color: var(--good);
+      }
+
+      .team.evil {
+        color: var(--evil);
+      }
+
+      .app-intro {
+        margin-bottom: 2.5mm;
+        padding: 2.2mm 2.6mm;
+        border: 0.3mm solid rgba(91, 59, 119, 0.5);
+        border-radius: 2mm;
+        background: rgba(255, 250, 235, 0.46);
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 2.45mm;
+        line-height: 1.28;
+        text-align: left;
+      }
+
+      .steps,
+      .signals {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .steps {
+        counter-reset: app-step;
+      }
+
+      .steps li {
+        position: relative;
+        min-height: 6.5mm;
+        margin: 0 0 2.35mm;
+        padding-left: 8.1mm;
+        font-size: 2.58mm;
+        line-height: 1.25;
+        text-align: justify;
+        text-wrap: pretty;
+        hyphens: auto;
+        counter-increment: app-step;
+      }
+
+      .steps li::before {
+        content: counter(app-step);
+        position: absolute;
+        left: 0;
+        top: -0.15mm;
+        display: grid;
+        width: 5.5mm;
+        height: 5.5mm;
+        place-items: center;
+        border: 0.35mm solid var(--violet);
+        border-radius: 50%;
+        background: rgba(244, 232, 204, 0.88);
+        color: var(--violet);
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 2.45mm;
+        font-weight: 800;
+      }
+
+      .steps li:last-child {
+        margin-bottom: 0;
+      }
+
+      .signals li {
+        position: relative;
+        margin: 0 0 3.25mm;
+        padding-left: 6mm;
+        font-size: 2.85mm;
+        line-height: 1.25;
+      }
+
+      .signals li::before {
+        content: "◆";
+        position: absolute;
+        left: 0;
+        top: 0;
+        color: var(--wine);
+        font-size: 2.7mm;
+      }
+
+      .signals .meaning {
+        color: var(--wine);
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 0.92em;
+        font-weight: 800;
+        letter-spacing: 0.025em;
+        text-transform: uppercase;
+      }
+
+      .night-note {
+        margin-top: 4mm;
+        padding: 2.8mm 3mm;
+        border-left: 1mm solid var(--violet);
+        background: rgba(255, 250, 235, 0.52);
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 2.35mm;
+        line-height: 1.32;
+      }
+
+      .dawn {
+        margin-top: 7mm;
+        padding-top: 3.2mm;
+        border-top: 0.35mm solid rgba(113, 45, 53, 0.65);
+      }
+
+      .dawn h3 {
+        margin: 0 0 2.2mm;
+        color: var(--wine);
+        font-size: 3.7mm;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-align: center;
+      }
+
+      .dawn p {
+        font-size: 2.6mm;
+        line-height: 1.27;
+        text-align: left;
+      }
+
+      .nomination-copy p {
+        margin-bottom: 2.1mm;
+        font-size: 2.63mm;
+        line-height: 1.24;
+      }
+
+      .quote {
+        padding-left: 3mm;
+        border-left: 0.8mm solid var(--violet);
+        color: var(--violet-dark);
+        font-style: italic;
+        text-align: left;
+      }
+
+      .app-result {
+        margin-top: 2.8mm;
+        padding: 2.6mm 2.9mm;
+        border: 0.35mm solid rgba(91, 59, 119, 0.55);
+        border-radius: 2mm;
+        background: rgba(255, 250, 235, 0.55);
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 2.35mm;
+        line-height: 1.28;
+        text-align: left;
+      }
+
+      .side-brand {
+        position: absolute;
+        z-index: 3;
+        right: 2.4mm;
+        top: 44mm;
+        display: flex;
+        width: 13.4mm;
+        height: 205mm;
+        align-items: center;
+        justify-content: center;
+        color: #f1d78e;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 4.35mm;
+        font-weight: 600;
+        letter-spacing: 0.24em;
+        line-height: 1;
+        text-shadow: 0 0.5mm 1.1mm rgba(0, 0, 0, 0.95);
+        text-transform: uppercase;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+      }
+
+      .side-brand::before {
+        content: "";
+        position: absolute;
+        inset: -3mm 1.1mm;
+        z-index: -1;
+        border-radius: 4mm;
+        background: rgba(20, 10, 31, 0.28);
+      }
+
+      .footer {
+        position: absolute;
+        z-index: 3;
+        left: 17mm;
+        bottom: 4.3mm;
+        width: 165mm;
+        color: #463b30;
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: 1.75mm;
+        letter-spacing: 0.025em;
+        line-height: 1.25;
+        text-align: center;
+      }
+
+      .footer strong {
+        color: var(--violet);
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      @media screen {
+        body {
+          display: grid;
+          min-width: calc(210mm + 32px);
+          place-items: start center;
+          padding: 16px;
+        }
+
+        .sheet {
+          box-shadow: 0 10px 50px rgba(0, 0, 0, 0.55);
+        }
+
+        body.render-mode {
+          display: block;
+          min-width: 0;
+          padding: 0;
+        }
+
+        body.render-mode .sheet {
+          box-shadow: none;
+        }
+      }
+
+      @media print {
+        html,
+        body {
+          width: 210mm;
+          height: 297mm;
+          background: transparent;
+        }
+
+        body {
+          display: block;
+        }
+
+        .sheet {
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="sheet" aria-label="Guide express des joueurs pour l’application Assistant Conteur">
+      <section class="panel top-left">
+        <p class="eyebrow">Guide express des joueurs</p>
+        <h1>AVANT QUE LA<br />PARTIE COMMENCE</h1>
+        <div class="title-rule" aria-hidden="true"><span></span></div>
+
+        <p class="lead">
+          Un soir, à Ravenswood Bluff, le Conteur annonce qu’un Démon se cache parmi vous. Chacun reçoit un
+          <strong>personnage secret</strong>. La plupart servent le <span class="team good">Bien</span>&nbsp;; quelques-uns
+          servent le <span class="team evil">Mal</span>. Parlez, observez, accusez, bluffez&nbsp;: personne ne connaît la
+          vérité entière.
+        </p>
+        <p>
+          En règle générale, le Bien gagne lorsque le <strong>dernier Démon meurt</strong>. Si seulement deux joueurs
+          restent en vie alors qu’un Démon vit encore, le Mal l’emporte. Certains pouvoirs peuvent modifier ces
+          conditions.
+        </p>
+        <p>
+          La partie alterne <strong>nuit</strong> et <strong>jour</strong>. La nuit, fermez les yeux et ne parlez pas&nbsp;:
+          le Conteur réveille certains personnages et recueille leurs choix. Le jour, les joueurs discutent librement,
+          puis ont lieu les nominations et les votes publics.
+        </p>
+        <p>
+          <strong>Mourir ne vous élimine pas.</strong> Vous continuez à parler et gagnez ou perdez avec votre équipe. À
+          votre mort, sauf mention contraire sur votre personnage, vous perdez votre pouvoir et le droit de nominer&nbsp;;
+          vous conservez un seul <strong>vote fantôme</strong> pour le reste de la partie.
+        </p>
+        <p>
+          Certaines informations peuvent être fausses. Un joueur ivre ou empoisonné ne sait pas qu’il l’est&nbsp;: son
+          pouvoir ne fonctionne pas et le Conteur peut lui donner une information trompeuse.
+        </p>
+      </section>
+
+      <section class="panel top-right">
+        <p class="eyebrow">Votre partie, guidée sans la remplacer</p>
+        <h2>JOUER AVEC<br />L’ASSISTANT CONTEUR</h2>
+        <div class="title-rule" aria-hidden="true"><span></span></div>
+
+        <p class="app-intro">
+          Hors des écrans qu’il vous montre expressément, l’application est <strong>l’outil privé du Conteur</strong>.
+          Elle prépare les personnages, guide les nuits, mémorise les états et l’aide à résoudre les morts. Vous pouvez
+          discuter publiquement ou en privé autour de la table.
+        </p>
+
+        <ol class="steps">
+          <li>
+            <strong>Découvrez votre rôle seul.</strong> Quand votre nom est appelé, prenez l’écran, touchez
+            «&nbsp;Révéler mon personnage&nbsp;», lisez votre équipe et votre pouvoir, puis «&nbsp;J’ai compris&nbsp;». Le code QR est
+            facultatif&nbsp;: il contient votre nom et les informations du personnage affiché, jamais celles des autres
+            joueurs.
+          </li>
+          <li>
+            <strong>Ne regardez le grimoire que si le Conteur vous le montre pour votre pouvoir.</strong> Ne montrez
+            jamais votre écran de révélation ni la page ouverte par le code QR&nbsp;: si vous revendiquez un personnage,
+            faites-le uniquement en parlant.
+          </li>
+          <li>
+            <strong>La nuit, suivez seulement le Conteur.</strong> L’app lui indique qui réveiller et ce qu’il doit
+            montrer. Gardez les yeux fermés jusqu’à son signal, faites vos choix en silence, puis rendormez-vous aussitôt.
+          </li>
+          <li>
+            <strong>Posez toutes vos questions.</strong> Vous pouvez demander à parler au Conteur en privé. Il peut
+            expliquer une règle sans confirmer ce qui est réellement en jeu. Jouez la tromperie avec respect&nbsp;:
+            mentez sur le jeu, jamais pour blesser quelqu’un.
+          </li>
+        </ol>
+      </section>
+
+      <section class="panel bottom-left">
+        <p class="eyebrow">Les gestes sont votre interface</p>
+        <h2>PENDANT LA NUIT</h2>
+        <div class="title-rule" aria-hidden="true"><span></span></div>
+
+        <ul class="signals">
+          <li>Deux tapotements sur l’épaule ou le genou&nbsp;: <span class="meaning">ouvrez les yeux</span>.</li>
+          <li>La main s’abaisse&nbsp;: <span class="meaning">fermez les yeux</span>.</li>
+          <li>Hochement de tête&nbsp;: <span class="meaning">oui</span>&nbsp;; tête secouée&nbsp;: <span class="meaning">non</span>.</li>
+          <li>Pouce levé&nbsp;: <span class="meaning">gentil</span>&nbsp;; pouce baissé&nbsp;: <span class="meaning">méchant</span>.</li>
+          <li>Les doigts indiquent <span class="meaning">0, 1, 2, 3…</span>.</li>
+          <li>Pour choisir un joueur, pointez-le discrètement du doigt.</li>
+        </ul>
+
+        <p class="night-note">
+          Le Conteur présente ses gestes avant la première nuit&nbsp;: ses consignes priment sur cette légende. Téléphones
+          silencieux, écrans retournés et aucun commentaire pendant les réveils.
+        </p>
+
+        <div class="dawn">
+          <h3>AU LEVER DU JOUR</h3>
+          <p>
+            Le Conteur annonce les <strong>morts apparentes</strong> de la nuit et les éventuels retours à la vie. Les
+            cibles, protections, empoisonnements et causes restent secrets.
+          </p>
+          <p>
+            L’app lui présente d’abord un résumé privé, puis ouvre le jour suivant&nbsp;: toute la table peut recommencer à
+            parler.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel bottom-right nomination-copy">
+        <p class="eyebrow">Le jour appartient à la table</p>
+        <h2>AVANT LA PREMIÈRE<br />NOMINATION</h2>
+        <div class="title-rule" aria-hidden="true"><span></span></div>
+
+        <p class="quote">
+          «&nbsp;Menez les nominations et le vote à table comme d’habitude&nbsp;: l’app n’a besoin de savoir que le
+          résultat.&nbsp;»
+        </p>
+        <p>
+          Pour nominer, dites simplement&nbsp;: <strong>«&nbsp;Je nomme Alice&nbsp;»</strong>. Le Conteur donne la parole à
+          l’accusation puis à la défense. Chaque joueur vivant peut nominer une fois par jour&nbsp;; chaque joueur, vivant
+          ou mort, ne peut être nominé qu’une fois par jour.
+        </p>
+        <p>
+          Le vote fait le tour du cercle. Levez la main quand le Conteur vous désigne. Pour être placé sur le billot, un
+          joueur doit obtenir au moins autant de voix que la moitié du nombre de joueurs vivants. À la fin des
+          nominations, le joueur seul en tête est exécuté&nbsp;; en cas d’égalité, personne ne l’est.
+        </p>
+        <p>
+          Un vivant peut voter à chaque nomination. Un mort ne vote plus qu’<strong>une seule fois dans toute la
+          partie</strong>&nbsp;: c’est son vote fantôme. Choisissez bien son moment.
+        </p>
+
+        <p class="app-result">
+          <strong>Dans l’app&nbsp;:</strong> pour le scrutin ordinaire, le Conteur saisit uniquement le joueur exécuté ou
+          «&nbsp;Personne n’a été exécuté&nbsp;», puis marque séparément les votes fantômes utilisés dans le grimoire. L’app peut
+          signaler une victoire&nbsp;; le Conteur reste seul juge de la fin de partie.
+        </p>
+      </section>
+
+      <aside class="side-brand" aria-label="Assistant Conteur">ASSISTANT CONTEUR</aside>
+
+      <footer class="footer">
+        <strong>Assistant Conteur</strong> · guide joueurs · outil communautaire non officiel, non affilié à The
+        Pandemonium Institute ni à l’éditeur du jeu.
+      </footer>
+    </main>
+    <script>
+      if (new URLSearchParams(window.location.search).has('render')) {
+        document.body.classList.add('render-mode')
+      }
+    </script>
+  </body>
+</html>

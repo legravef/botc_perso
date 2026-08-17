@@ -1,7 +1,7 @@
 import logoTroubleBrewing from '@/assets/logo-trouble-brewing.png'
 import logoNoGreaterJoy from '@/assets/logo-no-greater-joy.svg'
 import logoOverTheRiver from '@/assets/logo-over-the-river.svg'
-import logoBadMoonRising from '../../bad_moon/Logo BDM.png'
+import logoBadMoonRising from '@/assets/logo-bad-moon-rising.png'
 import type { ScriptId } from '@/types'
 
 export function getScriptName(scriptId: ScriptId): string {

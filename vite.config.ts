@@ -39,6 +39,23 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+        // Les fiches imprimables (plusieurs Mo chacune) sont des documents optionnels : les
+        // précacher gonflerait l'installation initiale de l'app pour un contenu que beaucoup
+        // de Conteurs n'ouvriront jamais — et dépasse de toute façon la limite de 2 Mo par
+        // fichier de Workbox. Elles sont donc mises en cache à la première consultation, ce
+        // qui suffit à les garder disponibles hors-ligne une fois vues.
+        globIgnores: ['guides/**'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.includes('/guides/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fiches-imprimables',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

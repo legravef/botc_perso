@@ -1,6 +1,7 @@
 export * from './composition'
 export * from './circle'
 export * from './characters'
+export * from './deaths'
 export * from './events'
 export * from './nightOrder'
 export * from './recommendation'

@@ -177,13 +177,13 @@ export function GrimoireScreen({ onGoHome, onBack }: GrimoireScreenProps) {
           décoratif (pointer-events-none), pour que le grimoire ne soit plus un simple écran
           noir avec des cartes dessus. */}
       <div
-        className="pointer-events-none absolute inset-0"
+        className="ambient-night pointer-events-none absolute inset-0"
         style={{
           background: 'radial-gradient(ellipse 70% 55% at 50% 15%, rgba(177,138,255,0.10), transparent 65%)',
         }}
         aria-hidden="true"
       />
-      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+      <div className="ambient-night pointer-events-none absolute inset-0" aria-hidden="true">
         {GRIMOIRE_STARS.map((star, i) => (
           <span
             key={i}

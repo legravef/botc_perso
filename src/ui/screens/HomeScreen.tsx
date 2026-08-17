@@ -9,6 +9,7 @@ const DEMON_HEAD_URL =
 interface HomeScreenProps {
   onOpenCharacterReference: () => void
   onOpenTraining: () => void
+  onOpenHowToPlay: () => void
 }
 
 const HOME_STARS = [
@@ -34,7 +35,7 @@ function LogoGlow() {
   )
 }
 
-export function HomeScreen({ onOpenCharacterReference, onOpenTraining }: HomeScreenProps) {
+export function HomeScreen({ onOpenCharacterReference, onOpenTraining, onOpenHowToPlay }: HomeScreenProps) {
   const createGame = useGameStore((s) => s.createGame)
   const savedGames = useGameStore((s) => s.savedGames)
   const loadGame = useGameStore((s) => s.loadGame)
@@ -116,6 +117,24 @@ export function HomeScreen({ onOpenCharacterReference, onOpenTraining }: HomeScr
       </div>
 
       <div className="relative flex flex-col gap-3 w-full max-w-sm">
+        {/* Première entrée du menu : c'est la porte d'entrée d'un groupe qui découvre le jeu
+            (règles des joueurs + planches de rôles à poser sur la table), donc avant même le
+            choix du scénario. */}
+        <button
+          type="button"
+          onClick={onOpenHowToPlay}
+          className="group flex items-center gap-3 rounded-2xl border border-accent/50 bg-accent/10 px-5 py-4 text-left transition hover:-translate-y-0.5 hover:border-accent hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <span className="text-2xl" aria-hidden="true">📖</span>
+          <span className="flex-1">
+            <span className="block text-sm font-semibold">Comment jouer</span>
+            <span className="block text-[11px] text-ink-2 leading-tight">
+              Règles des joueurs et fiches des rôles, à consulter ou imprimer
+            </span>
+          </span>
+          <span className="text-ink-2 transition group-hover:translate-x-0.5" aria-hidden="true">›</span>
+        </button>
+
         <section aria-label="Choisir un scénario" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <ScriptCard
             name="Trouble Brewing"

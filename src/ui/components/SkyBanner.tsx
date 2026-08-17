@@ -133,7 +133,7 @@ export function SkyBanner({ variant, className = '' }: SkyBannerProps) {
       <ClocktowerSkyline accent={isSunrise ? '#3a2a1a' : '#cdd3ea'} />
 
       {/* Voile sombre en bas pour garder le texte lisible par-dessus */}
-      <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-surface-0/70 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-scrim/70 to-transparent" />
     </div>
   )
 }

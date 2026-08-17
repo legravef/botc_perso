@@ -10,6 +10,8 @@ import { SkyBanner } from '../components/SkyBanner'
 import { PlayerChoiceGrid } from '../components/PlayerChoiceGrid'
 import { CharacterChoiceGrid } from '../components/CharacterChoiceGrid'
 import { CharacterPickerOverlay } from '../components/CharacterPickerOverlay'
+import { ReactiveRoleRevealOverlay, type ReactiveRevealRequest } from './night/ReactiveRoleRevealOverlay'
+import { SageRevealOverlay } from './night/SageRevealOverlay'
 
 interface AutoReminderConfig {
   /** Joueurs proposés dans le sélecteur de cible. */
@@ -95,11 +97,8 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const [impSuccessorId, setImpSuccessorId] = useState('')
   const [mayorRedirectTargetId, setMayorRedirectTargetId] = useState('')
   const [nightOutcome, setNightOutcome] = useState<string | null>(null)
-  const [roleRevealRequest, setRoleRevealRequest] = useState<{ actorId: string; title: string } | null>(null)
-  const [roleRevealTargetId, setRoleRevealTargetId] = useState('')
-  const [sageRevealRequest, setSageRevealRequest] = useState<{ actorId: string; title: string } | null>(null)
-  const [sageCandidateIds, setSageCandidateIds] = useState<string[]>([])
-  const [showSageReveal, setShowSageReveal] = useState(false)
+  const [roleRevealRequest, setRoleRevealRequest] = useState<ReactiveRevealRequest | null>(null)
+  const [sageRevealRequest, setSageRevealRequest] = useState<ReactiveRevealRequest | null>(null)
   const [bmrReviveTargetId, setBmrReviveTargetId] = useState('')
   const [bmrInfoResult, setBmrInfoResult] = useState<string | null>(null)
   const [recluseRegistersAsDemon, setRecluseRegistersAsDemon] = useState(false)
@@ -149,10 +148,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     setMayorRedirectTargetId('')
     setNightOutcome(null)
     setRoleRevealRequest(null)
-    setRoleRevealTargetId('')
     setSageRevealRequest(null)
-    setSageCandidateIds([])
-    setShowSageReveal(false)
     setBmrReviveTargetId('')
     setBmrInfoResult(null)
     setRecluseRegistersAsDemon(false)
@@ -351,7 +347,6 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     )
     if (ravenkeeper) {
       setRoleRevealRequest({ actorId: ravenkeeper.id, title: `Gardien — ${ravenkeeper.name}` })
-      setRoleRevealTargetId('')
       return
     }
     const sage = killedByDemon ? updatedGame.players.find(
@@ -359,17 +354,7 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
     ) : undefined
     if (sage) {
       setSageRevealRequest({ actorId: sage.id, title: `Sage — ${sage.name}` })
-      setSageCandidateIds([])
-      setShowSageReveal(false)
     }
-  }
-
-  function toggleSageCandidate(playerId: string) {
-    setSageCandidateIds((current) => {
-      if (current.includes(playerId)) return current.filter((id) => id !== playerId)
-      if (current.length >= 2) return [current[1] as string, playerId]
-      return [...current, playerId]
-    })
   }
 
   function recordBmrAction() {
@@ -621,10 +606,6 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
   const revealPlayers = reveal?.kind === 'players'
     ? reveal.playerIds.map((id) => game.players.find((player) => player.id === id)).filter((player): player is Player => Boolean(player))
     : []
-  const roleRevealTarget = roleRevealTargetId ? game.players.find((player) => player.id === roleRevealTargetId) : undefined
-  const roleRevealCharacter = roleRevealTarget?.realCharacterId
-    ? getCharacterById(game.scriptId, roleRevealTarget.realCharacterId)
-    : undefined
   const demonInfoPlayer = step?.demonPlayerId ? game.players.find((player) => player.id === step.demonPlayerId) : undefined
   const demonInfoCharacter = step?.perceivedDemonCharacterId
     ? getCharacterById(game.scriptId, step.perceivedDemonCharacterId)
@@ -1213,88 +1194,23 @@ export function NightAssistantScreen({ onOpenGrimoire }: { onOpenGrimoire: () =>
       </footer>
     </div>
 
-    {roleRevealRequest && !roleRevealTarget && (
-      <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col items-center justify-center gap-8 px-8">
-        <div className="text-center">
-          <p className="text-xs text-accent uppercase tracking-[0.18em] mb-3">Réveil réactif</p>
-          <h2 className="text-2xl font-semibold">{roleRevealRequest.title}</h2>
-          <p className="text-ink-2 mt-3">Sélectionnez le joueur dont le rôle doit être montré.</p>
-        </div>
-        <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {game.players.map((player) => (
-            <Button
-              key={player.id}
-              variant="secondary"
-              className="min-h-20 text-xl"
-              onClick={() => {
-                setRoleRevealTargetId(player.id)
-                addNote(roleRevealRequest.actorId, `Gardien : rôle de ${player.name} révélé.`, 'information')
-              }}
-            >
-              {player.name}
-            </Button>
-          ))}
-        </div>
-        <Button variant="ghost" onClick={() => setRoleRevealRequest(null)}>Passer ce réveil</Button>
-      </div>
+    {roleRevealRequest && (
+      <ReactiveRoleRevealOverlay
+        request={roleRevealRequest}
+        game={game}
+        onAddNote={addNote}
+        onClose={() => setRoleRevealRequest(null)}
+      />
     )}
 
-    {roleRevealRequest && roleRevealTarget && (
-      <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col items-center justify-center gap-8 px-6 text-center">
-        <p className="text-ink-2 text-sm">Montrez ceci à {roleRevealRequest.title.replace('Gardien — ', '')}</p>
-        <div className="bg-accent/10 border border-accent/50 rounded-3xl px-12 py-10 flex flex-col items-center gap-4 min-w-72">
-          <p className="text-lg text-ink-1">{roleRevealTarget.name}</p>
-          <RoleIcon characterId={roleRevealCharacter?.id} nameFr={roleRevealCharacter?.nameFr} size={92} />
-          <p className="text-3xl font-semibold">{roleRevealCharacter?.nameFr ?? '?'}</p>
-        </div>
-        <Button variant="primary" onClick={() => setRoleRevealRequest(null)}>J’ai montré ce rôle</Button>
-      </div>
-    )}
-
-    {sageRevealRequest && !showSageReveal && (
-      <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col items-center justify-center gap-6 px-8">
-        <div className="text-center">
-          <p className="text-xs text-accent uppercase tracking-[0.18em] mb-3">Réveil réactif</p>
-          <h2 className="text-2xl font-semibold">{sageRevealRequest.title}</h2>
-          <p className="text-ink-2 mt-3">Choisissez exactement deux joueurs, dont le Démon vivant.</p>
-        </div>
-        <PlayerChoiceGrid
-          players={game.players.filter((player) => player.id !== sageRevealRequest.actorId)}
-          selectedIds={sageCandidateIds}
-          onSelect={toggleSageCandidate}
-        />
-        {sageCandidateIds.length === 2 && activeDemon && !sageCandidateIds.includes(activeDemon.id) && (
-          <p className="text-sm text-danger">L’un des deux joueurs montrés doit être le Démon.</p>
-        )}
-        <div className="flex gap-3">
-          <Button variant="ghost" onClick={() => setSageRevealRequest(null)}>Passer ce réveil</Button>
-          <Button
-            variant="primary"
-            disabled={sageCandidateIds.length !== 2 || !activeDemon || !sageCandidateIds.includes(activeDemon.id)}
-            onClick={() => {
-              const names = sageCandidateIds.map((id) => game.players.find((player) => player.id === id)?.name).filter(Boolean).join(' ou ')
-              addNote(sageRevealRequest.actorId, `[NGJ:sage:${game.nightNumber}] Sage : voit ${names}.`, 'information')
-              setShowSageReveal(true)
-            }}
-          >
-            Montrer ces deux joueurs
-          </Button>
-        </div>
-      </div>
-    )}
-
-    {sageRevealRequest && showSageReveal && (
-      <div className="fixed inset-0 z-50 bg-surface-0 flex flex-col items-center justify-center gap-8 px-6 text-center">
-        <p className="text-ink-2 text-sm">Le Démon est l’un de ces deux joueurs</p>
-        <div className="flex flex-wrap justify-center gap-5">
-          {sageCandidateIds.map((id) => (
-            <div key={id} className="min-w-48 rounded-2xl border border-accent/50 bg-accent/10 px-8 py-7">
-              <p className="text-3xl font-semibold">{game.players.find((player) => player.id === id)?.name ?? '?'}</p>
-            </div>
-          ))}
-        </div>
-        <Button variant="primary" onClick={() => setSageRevealRequest(null)}>Information montrée</Button>
-      </div>
+    {sageRevealRequest && (
+      <SageRevealOverlay
+        request={sageRevealRequest}
+        game={game}
+        activeDemon={activeDemon}
+        onAddNote={addNote}
+        onClose={() => setSageRevealRequest(null)}
+      />
     )}
 
     {showGodfatherPlayerAction && isBmrAction && bmrCharacter?.id === 'godfather' && (

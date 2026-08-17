@@ -26,17 +26,11 @@ dist-ssr
 # Config locale de l'outil Claude Code (pas partie de l'app)
 .claude
 
-# Documents de référence officiels (rulebook, glossaire, planches de rôles imprimées) : servent
-# uniquement de matériel de référence pendant le développement, ne sont utilisés par aucun code
-# de l'app, et sont des documents officiels de The Pandemonium Institute — pas à redistribuer.
-ALMANACH FR Oct 2024.pdf
-GLOSSAIRE.pdf
-Nuit conteur V3.jpg
-Icones roles/
-pouvoirs des rôles - Texte \[Oct 2024\].txt
-trouble brewing rôle 3.0 jpeg.jpg
-trouble brewing rôles 3.0.pdf
+# Matériel de travail local, utilisé par aucun code de l'app : documents de référence officiels
+# de The Pandemonium Institute (rulebook, glossaire, planches de rôles — pas à redistribuer),
+# planches d'icônes sources et scripts de vérification ponctuels.
+reference/
 
-# Scripts de vérification ponctuels laissés à la racine par erreur
-_debug.mjs
-_smoke*.mjs
+# Sources de fabrication des fiches imprimables : seuls les fichiers publiés dans
+# public/guides/ sont servis par l'app.
+docs/
